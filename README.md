@@ -1,12 +1,12 @@
-# MiHome-Windows（本地修改版）
+# MiHome-Windows（修改版）
 
 米家设备的 Windows 桌面控制端。本仓库是
 [huanyuejue/MiHome-Windows](https://github.com/huanyuejue/MiHome-Windows)
-的**二次开发分支（fork 定制版）**：在原版能力全部保留的基础上，针对日常
+的**二次开发分支（fork）**：在原版能力全部保留的基础上，针对日常
 使用体验做了一批界面调整与功能扩展（桌面小组件、托盘增强、跨界面状态同步、
 米家浅色风主界面等），供自用与交流。
 
-原版：https://github.com/huanyuejue/MiHome-Windows ｜ 本分支（作者 iop666）
+原版：https://github.com/huanyuejue/MiHome-Windows
 
 > **注意：当前项目仍处于早期版本。** 作者个人米家设备有限，无法对各类设备
 > 做针对性适配测试，因此 UI 和操作逻辑的完善度不算很高。不过基础使用
@@ -18,6 +18,9 @@
 本 fork 在原版基础上做了以下修改与新增（以提交记录为准，按功能归类）：
 
 ### 新增：桌面小组件
+
+<img width="2289" height="1769" alt="image" src="https://github.com/user-attachments/assets/7ee411a9-dad4-4b82-90e1-ea6f6791e31e" />
+
 - 把单个或多个设备「固定到桌面」的常驻小组件：只显示设备控件、无标题栏；
 - 多设备可合并在一个小组件里，每台设备可**自选展开哪些调节控件**（亮度/
   色温/模式等），全部不选则只留开关行；
@@ -27,6 +30,9 @@
 - 开关状态与调节值随主窗口/托盘/详情页**实时同步**，并周期回读云端真实值。
 
 ### 新增/调整：系统托盘
+
+<img width="751" height="925" alt="image" src="https://github.com/user-attachments/assets/1073b4af-d6ae-4f73-bde2-48459c7753eb" />
+
 - 托盘快捷窗口的单列/双列卡片切换**沿用原版**；本版调整：双列网格下隐藏
   行内「调节」按钮（需要调节时切到单列再展开），并修复托盘重建时新旧行
   残留重叠、窗口高度/贴任务栏等布局问题；
@@ -39,6 +45,9 @@
 - 修复托盘重建时新旧行残留重叠、内容少时窗口被硬撑高等布局问题。
 
 ### 新增/调整：主界面与主题
+
+<img width="1245" height="828" alt="image" src="https://github.com/user-attachments/assets/da88e7cb-923e-43ae-9d08-c88eb52c5f7c" />
+
 - 浅色模式采用「米家 App 风」：灰画布 + 白卡片 + 米家绿主题色；
 - 设备卡片支持**产品图**（联网拉取一次后本地缓存，可在设置关闭）与
   **卡片宽度**档位（176–300，即时生效）；
