@@ -176,7 +176,7 @@ class TrayQuickWindow(QDialog):
         self._list_lay.setContentsMargins(0, 0, 4, 0)
         self._list_lay.setSpacing(6)
         self._scroll.setWidget(self._host)
-        lay.addWidget(self._scroll, stretch=1)
+        lay.addWidget(self._scroll)
 
         self._empty = QLabel("暂无托盘设备\n点击右上角 + 添加")
         self._empty.setAlignment(Qt.AlignCenter)
@@ -205,6 +205,9 @@ class TrayQuickWindow(QDialog):
 
         # 底部输入框：占满宽度
         lay.addWidget(self._voice_frame)
+        # 剩余高度全部压在末尾：标题/设备行恒贴顶部，空白只出现在控件
+        # 下方（设备少时也不会有内容上方的空洞/浮高观感）
+        lay.addStretch(1)
 
         # 音箱音频控制栏：不放在设备卡片内，顶部单独界面
         self._audio_bar = _TrayAudioBar(service, jobs, self)
@@ -215,9 +218,9 @@ class TrayQuickWindow(QDialog):
         self._outer_lay.addWidget(self._audio_bar)
         self._outer_lay.addWidget(self._root)
         self.resize(300, 380)
-        # 最小高度只兜底内容（高度由 _sync_tray_height 按内容算）：
-        # 曾设 360 会把设备少时的窗口硬撑高，内容上方/内部出现大片空白
-        self.setMinimumSize(280, 120)
+        # 保持与原版一致的最低显示高度：设备少时窗口不缩成一小条，
+        # 高度不足处由末尾空白承接（设备行仍贴面板顶部）
+        self.setMinimumSize(280, 360)
         self._tray_dids: list[str] = tray_store.load()
         # 呼出/隐藏动画与点击外部隐藏
         self._target_pos: QPoint | None = None
