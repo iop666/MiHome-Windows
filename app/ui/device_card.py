@@ -4,8 +4,9 @@
 """米家风格的设备卡片。
 
 卡片承担两级操作：右侧圆形电源钮直接开关（快速路径），点击卡片本体
-打开详情面板（完整控制）。布局为纯文字：左侧设备名与副标题（房间，
-可附带温湿度读数），右侧垂直居中的电源钮，无装饰图标。
+打开详情面板（完整控制）。布局：左侧设备产品图（异步就绪后注入，
+设置可关）与设备名/副标题（房间，可附带温湿度读数），右侧垂直居中
+的电源钮。
 
 设备是否支持开关在列表接口里拿不到：电源钮初始隐藏，后台批量探测
 确认有可写开关属性后才显示并回填真实状态。
@@ -26,7 +27,7 @@ from app.ui.power_button import PowerButton
 from app.ui.si_theme import SiColors
 
 _POWER_BTN_SIZE = 36
-_CARD_FIXED_WIDTH = 202
+_CARD_FIXED_WIDTH = 216
 _CARD_FIXED_HEIGHT = 92
 
 # 离线卡片的灰置配色：背景更暗、文字更灰，hover 不提亮
@@ -176,5 +177,3 @@ class DeviceCard(SiRowCard):
         if event.button() == Qt.LeftButton:
             self.open_requested.emit(self.device.did)
         super().mouseReleaseEvent(event)
-
-

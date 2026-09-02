@@ -26,6 +26,7 @@ from mijiaAPI import (
     mijiaDevice,
 )
 from mijiaAPI.devices import DevAction, DevProp
+from mijiaAPI.miutils import generate_enc_params, gen_nonce, get_signed_nonce
 
 from . import safety as safety_mod
 from .models import (
@@ -702,8 +703,18 @@ class MijiaService:
         return url
 
     def fetch_product_icon(self, model: str) -> bytes | None:
-        """下载产品图字节（供 icons 缓存落盘）；无图/失败返回 None。"""
+        """下载产品图字节（供 icons 缓存落盘）；无图/失败返回 None。
+
+        spec 产品页无产品图时回退到网关 productconfig/get_icon 的设备
+        图标（吸收上游 #13 的接口实现），两路都拿不到才返回 None。
+        任一型号一旦确认地址（含兜底地址）即按型号缓存，本会话不再
+        重复探测；中途关过产品图再开启时仍会重新走一遍（内存缓存被
+        调用方清空后允许再试）。
+        """
         url = self.product_icon_url(model)
+        if not url:
+            url = self._fetch_gateway_icon_url(model)
+            self._icon_urls[model] = url
         if not url:
             return None
         try:
@@ -717,6 +728,37 @@ class MijiaService:
         except Exception:
             logger.warning("下载型号 %s 产品图失败", model)
         return None
+
+    def _fetch_gateway_icon_url(self, model: str) -> str | None:
+        """调米家网关 productconfig/get_icon 取设备图标 CDN 地址。
+
+        该接口靠 302 重定向返回图片地址而非 JSON 响应体，必须关闭自动
+        跟随重定向、自己读 Location；签名流程与其它网关请求保持一致。
+        失败（含未登录/无权限）一律返回 None，调用方按“无兜底图标”
+        处理，不影响主流程。
+        """
+        uri = "/v2/productconfig/get_icon"
+        try:
+            self._api._refresh_token()
+            params = {"data": json.dumps(
+                {"icon_name": "icon_real", "model": model},
+                separators=(",", ":"))}
+            nonce = gen_nonce()
+            signed_nonce = get_signed_nonce(
+                self._api.auth_data["ssecurity"], nonce)
+            params = generate_enc_params(
+                uri, "POST", signed_nonce, nonce, params,
+                self._api.auth_data["ssecurity"])
+            ret = self._api.session.post(
+                self._api.api_base_url + uri, data=params,
+                allow_redirects=False, timeout=30)
+        except Exception as exc:
+            logger.warning("获取设备图标失败 %s: %s", model, exc)
+            return None
+        if ret.status_code != 302:
+            logger.info("获取设备图标未重定向 %s: HTTP %s", model, ret.status_code)
+            return None
+        return ret.headers.get("Location")
 
     def model_has_published_functions(self, model: str) -> bool | None:
         """该型号是否发布过含属性的功能 spec。
