@@ -37,8 +37,8 @@ from app.ui.si_theme import (
 _THEME_MODE_LABELS = {"system": "跟随系统", "light": "浅色模式", "dark": "深色模式"}
 _THEME_LABEL_TO_MODE = {v: k for k, v in _THEME_MODE_LABELS.items()}
 
-_TAB_APPEARANCE, _TAB_TRAY, _TAB_FEATURES = 0, 1, 2
-_TAB_TITLES = ("主题界面", "托盘设置", "应用功能")
+_TAB_APPEARANCE, _TAB_TRAY, _TAB_FEATURES, _TAB_WIDGETS = 0, 1, 2, 3
+_TAB_TITLES = ("主题界面", "托盘设置", "应用功能", "桌面小组件")
 # 切页淡入时长：与主页房间切换同款
 _FADE_MS = 160
 
@@ -75,9 +75,10 @@ class _PagesHost(QWidget):
 class SettingsDialog(OverlayDialog):
     """设置对话框：暗色遮罩 + 居中圆角面板，可拖拽。"""
 
-    def __init__(self, parent=None, devices=None):
+    def __init__(self, parent=None, devices=None, widget_manager=None):
         super().__init__(parent)
         self._devices = devices or []
+        self._widget_mgr = widget_manager
         self.setWindowTitle("设置")
         # 尺寸由 showEvent 按主窗口显隐决定：可见时覆盖主窗口，隐藏时铺满屏幕
         self._header_drag_pos = None
@@ -138,9 +139,11 @@ class SettingsDialog(OverlayDialog):
         self._appearance_scroll = self._build_appearance_page()
         self._tray_scroll = self._build_tray_page()
         self._features_scroll = self._build_features_page()
+        self._widget_scroll = self._build_widget_page()
         self._pages_host.add_page(self._appearance_scroll)
         self._pages_host.add_page(self._tray_scroll)
         self._pages_host.add_page(self._features_scroll)
+        self._pages_host.add_page(self._widget_scroll)
 
         # ---- 底部按钮 ----
         btn_row = QHBoxLayout()
@@ -398,9 +401,9 @@ class SettingsDialog(OverlayDialog):
 
     def _show_tab(self, index: int, animated: bool) -> None:
         """切页：隐藏全部其它页后让目标页淡入（三页及以上关键：一次
-        只藏一页会残留第三页重叠，表现为设置界面内容错乱/空白）。"""
+        只藏一页会残留其它页重叠，表现为设置界面内容错乱/空白）。"""
         pages = (self._appearance_scroll, self._tray_scroll,
-                 self._features_scroll)
+                 self._features_scroll, self._widget_scroll)
         for i, page in enumerate(pages):
             if i != index:
                 page.hide()
@@ -426,6 +429,267 @@ class SettingsDialog(OverlayDialog):
 
         anim.finished.connect(_cleanup)
         anim.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
+
+    # ---------- 桌面小组件 ----------
+
+    def _build_widget_page(self) -> QScrollArea:
+        """桌面小组件：添加/移除、缩放(1%步进)、锁定/置顶、背景透明度。"""
+        host = QWidget()
+        host.setStyleSheet("background: transparent;")
+        body = QVBoxLayout(host)
+        body.setContentsMargins(8, 6, 8, 0)
+        body.setSpacing(8)
+
+        head = QHBoxLayout()
+        title = QLabel("桌面小组件")
+        title.setStyleSheet(
+            f"color: {SiColors.TEXT_PRIMARY}; background: transparent; font-size: 11pt;")
+        head.addWidget(title)
+        head.addStretch(1)
+        self._widget_add_btn = QPushButton("+ 添加小组件")
+        self._widget_add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._widget_add_btn.setFixedHeight(30)
+        self._widget_add_btn.clicked.connect(self._widget_add)
+        head.addWidget(self._widget_add_btn)
+        body.addLayout(head)
+
+        desc = QLabel(
+            "把单个或多个设备固定为桌面小组件：顶部手柄拖动摆放（解锁后），"
+            "点击 −/+ 以 1% 步进缩放；「锁定」后不可误拖，需回到本页解锁；"
+            "「置顶」让小组件浮在其他窗口之上；「背景透明」调节卡片透出桌面程度。")
+        desc.setWordWrap(True)
+        desc.setStyleSheet(
+            f"color: {SiColors.TEXT_SECONDARY}; background: transparent; font-size: 8pt;")
+        body.addWidget(desc)
+
+        self._widget_list_host = QWidget()
+        self._widget_list_host.setStyleSheet("background: transparent;")
+        self._widget_list_lay = QVBoxLayout(self._widget_list_host)
+        self._widget_list_lay.setContentsMargins(0, 0, 0, 0)
+        self._widget_list_lay.setSpacing(8)
+        body.addWidget(self._widget_list_host)
+        body.addStretch(1)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        scroll.setStyleSheet(
+            "QScrollArea { background: transparent; border: none; }"
+            f"QScrollBar:vertical {{ background: transparent; width: 6px; margin: 0; }}"
+            f"QScrollBar::handle:vertical {{ background: {SiColors.SCROLLBAR};"
+            f" border-radius: 3px; min-height: 30px; }}")
+        scroll.setWidget(host)
+        self._refresh_widget_rows()
+        return scroll
+
+    def _widget_add(self) -> None:
+        """选择设备并创建一个小组件。"""
+        if not self._devices:
+            from app.ui.toast import Toast
+            Toast.info(self, "请先刷新获取设备列表", 2500)
+            return
+        from app.ui.widget_dialogs import DevicePickDialog
+        dlg = DevicePickDialog(self._devices, self)
+        dlg.exec()
+        dids = dlg.selected_dids()
+        if not dids:
+            return
+        dev_map = {d.did: d for d in self._devices}
+        meta = {
+            d: {"name": dev_map[d].name, "room": dev_map[d].room_name,
+                "online": dev_map[d].online}
+            for d in dids
+        }
+        if self._widget_mgr is not None:
+            cfg = self._widget_mgr.add(dids)
+            if cfg is not None:
+                self._widget_mgr.update(cfg["id"], "devices", meta)
+        self._refresh_widget_rows()
+
+    def _refresh_widget_rows(self) -> None:
+        """按当前 widget 配置重建列表行。"""
+        if not hasattr(self, "_widget_list_lay"):
+            return
+        while self._widget_list_lay.count():
+            item = self._widget_list_lay.takeAt(0)
+            if w := item.widget():
+                w.deleteLater()
+        if self._widget_mgr is None:
+            hint = QLabel("小组件功能当前不可用（未初始化桌面环境）。")
+            hint.setStyleSheet(
+                f"color: {SiColors.TEXT_SECONDARY}; background: transparent;"
+                f" font-size: 9pt;")
+            self._widget_list_lay.addWidget(hint)
+            return
+        widgets = self._widget_mgr.list_widgets()
+        if not widgets:
+            hint = QLabel("还没有小组件——点上方「+ 添加小组件」把设备固定到桌面。")
+            hint.setStyleSheet(
+                f"color: {SiColors.TEXT_MUTED}; background: transparent;"
+                f" font-size: 9pt;")
+            self._widget_list_lay.addWidget(hint)
+            return
+        for index, cfg in enumerate(widgets):
+            self._widget_list_lay.addWidget(
+                self._make_widget_row(cfg, index))
+
+    def _widget_devices_text(self, cfg: dict) -> str:
+        meta = cfg.get("devices") or {}
+        names = []
+        for did in cfg.get("dids", []):
+            m = meta.get(did) or {}
+            names.append(m.get("name") or did)
+        text = "、".join(names[:3])
+        if len(names) > 3:
+            text += f" 等{len(names)}台"
+        return text
+
+    def _widget_row_btn(self, text: str, active: bool = False) -> QPushButton:
+        btn = QPushButton(text)
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.setFixedHeight(26)
+        btn.setStyleSheet(
+            f"QPushButton {{ background: {SiColors.THEME if active else SiColors.SURFACE};"
+            f" color: {SiColors.ON_THEME_TEXT if active else SiColors.TEXT_PRIMARY};"
+            f" border: none; border-radius: 7px; padding: 0 10px; font-size: 9pt; }}"
+            f"QPushButton:hover {{ background: {SiColors.THEME_HOVER if active else SiColors.BTN_HOVER}; }}")
+        return btn
+
+    def _make_widget_row(self, cfg: dict, index: int) -> QFrame:
+        from PySide6.QtWidgets import QSlider
+
+        row = QFrame()
+        row.setObjectName("widgetRow")
+        row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        row.setStyleSheet(
+            f"QFrame#widgetRow {{ background: {SiColors.CARD};"
+            f" border: 1px solid {SiColors.LINE}; border-radius: 10px; }}")
+        lay = QVBoxLayout(row)
+        lay.setContentsMargins(12, 10, 12, 10)
+        lay.setSpacing(6)
+        wid = cfg["id"]
+
+        title_row = QHBoxLayout()
+        name = QLabel(f"小组件 {index + 1} · {self._widget_devices_text(cfg)}")
+        name.setStyleSheet(
+            f"color: {SiColors.TEXT_PRIMARY}; background: transparent; font-size: 10pt;")
+        title_row.addWidget(name, 1)
+        del_btn = QPushButton("删除")
+        del_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        del_btn.setFixedHeight(24)
+        del_btn.setStyleSheet(
+            f"QPushButton {{ background: transparent; border: none;"
+            f" color: {SiColors.DEL_TEXT}; font-size: 9pt; }}"
+            f"QPushButton:hover {{ color: {SiColors.DANGER_TEXT}; }}")
+        del_btn.clicked.connect(lambda _, w=wid: self._widget_remove(w))
+        title_row.addWidget(del_btn)
+        lay.addLayout(title_row)
+
+        # 缩放行：− / 百分比 / +（1% 步进）
+        scale_row = QHBoxLayout()
+        scale_lab = QLabel("缩放")
+        scale_lab.setStyleSheet(
+            f"color: {SiColors.TEXT_SECONDARY}; background: transparent; font-size: 9pt;")
+        scale_row.addWidget(scale_lab)
+        scale_row.addStretch(1)
+        minus = QPushButton("−")
+        minus.setFixedSize(26, 26)
+        minus.setCursor(Qt.CursorShape.PointingHandCursor)
+        minus.clicked.connect(
+            lambda _, w=wid: self._widget_scale(w, -1))
+        scale_row.addWidget(minus)
+        scale_val = QLabel(f"{cfg['scale']}%")
+        scale_val.setAlignment(Qt.AlignCenter)
+        scale_val.setMinimumWidth(48)
+        scale_val.setStyleSheet(
+            f"color: {SiColors.TEXT_PRIMARY}; background: transparent; font-size: 10pt;")
+        scale_row.addWidget(scale_val)
+        plus = QPushButton("+")
+        plus.setFixedSize(26, 26)
+        plus.setCursor(Qt.CursorShape.PointingHandCursor)
+        plus.clicked.connect(
+            lambda _, w=wid: self._widget_scale(w, 1))
+        scale_row.addWidget(plus)
+        for b in (minus, plus):
+            b.setStyleSheet(
+                f"QPushButton {{ background: {SiColors.SURFACE}; border: none;"
+                f" border-radius: 7px; color: {SiColors.TEXT_PRIMARY}; font-size: 12pt; }}"
+                f"QPushButton:hover {{ background: {SiColors.BTN_HOVER}; }}")
+        lay.addLayout(scale_row)
+
+        # 锁定 / 置顶
+        opt_row = QHBoxLayout()
+        opt_row.addStretch(1)
+        locked_btn = self._widget_row_btn(
+            "🔓 解锁移动" if cfg["locked"] else "🔒 锁定", active=cfg["locked"])
+        locked_btn.setToolTip("解锁后可用小组件顶部手柄拖动位置")
+        locked_btn.clicked.connect(
+            lambda _, w=wid, l=cfg["locked"]: self._widget_update(
+                w, "locked", not l))
+        opt_row.addWidget(locked_btn)
+        top_btn = self._widget_row_btn(
+            "置顶中" if cfg["topmost"] else "普通层", active=cfg["topmost"])
+        top_btn.setToolTip("置顶：小组件浮在其他窗口之上")
+        top_btn.clicked.connect(
+            lambda _, w=wid, t=cfg["topmost"]: self._widget_update(
+                w, "topmost", not t))
+        opt_row.addWidget(top_btn)
+        lay.addLayout(opt_row)
+
+        # 背景透明度
+        alpha_row = QHBoxLayout()
+        alpha_lab = QLabel("背景透明")
+        alpha_lab.setStyleSheet(
+            f"color: {SiColors.TEXT_SECONDARY}; background: transparent; font-size: 9pt;")
+        alpha_row.addWidget(alpha_lab)
+        slider = QSlider(Qt.Horizontal)
+        slider.setRange(0, 100)
+        slider.setValue(int(cfg["bg_alpha"]))
+        slider.setCursor(Qt.CursorShape.PointingHandCursor)
+        slider.setStyleSheet(
+            f"QSlider::groove:horizontal {{ height: 4px; background: {SiColors.SURFACE};"
+            f" border-radius: 2px; }}"
+            f"QSlider::sub-page:horizontal {{ background: {SiColors.THEME}; border-radius: 2px; }}"
+            f"QSlider::handle:horizontal {{ width: 14px; height: 14px;"
+            f" background: {SiColors.THUMB}; border-radius: 7px; margin: -5px 0; }}")
+        alpha_row.addWidget(slider, 1)
+        alpha_val = QLabel(f"{cfg['bg_alpha']}%")
+        alpha_val.setMinimumWidth(36)
+        alpha_val.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        alpha_val.setStyleSheet(
+            f"color: {SiColors.TEXT_SECONDARY}; background: transparent; font-size: 9pt;")
+        alpha_row.addWidget(alpha_val)
+        slider.valueChanged.connect(
+            lambda v, w=wid, lab=alpha_val: self._widget_alpha(w, v, lab))
+        lay.addLayout(alpha_row)
+        return row
+
+    def _widget_remove(self, wid: str) -> None:
+        if self._widget_mgr is None:
+            return
+        self._widget_mgr.remove(wid)
+        self._refresh_widget_rows()
+
+    def _widget_scale(self, wid: str, delta: int) -> None:
+        if self._widget_mgr is None:
+            return
+        cfg = self._widget_mgr.get_config(wid)
+        if cfg is None:
+            return
+        self._widget_mgr.update(wid, "scale",
+                                min(max(cfg["scale"] + delta, 50), 200))
+        self._refresh_widget_rows()
+
+    def _widget_alpha(self, wid: str, value: int, label) -> None:
+        if self._widget_mgr is None:
+            return
+        label.setText(f"{value}%")
+        self._widget_mgr.update(wid, "bg_alpha", int(value))
+
+    def _widget_update(self, wid: str, field: str, value) -> None:
+        if self._widget_mgr is not None:
+            self._widget_mgr.update(wid, field, value)
+        self._refresh_widget_rows()
 
     # ---------- 样式 ----------
 

@@ -179,6 +179,17 @@ class MainWindow(QMainWindow):
             print(f"[Tray] 创建失败: {e}")
             self._tray = None
 
+        # 桌面小组件：随启动恢复，经设置页「桌面小组件」管理
+        self._widget_mgr = None
+        try:
+            from app.ui.widget_manager import WidgetManager
+            self._widget_mgr = WidgetManager(self._service, self._jobs, self)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            print(f"[Widget] 创建失败: {e}")
+            self._widget_mgr = None
+
         root = QVBoxLayout()
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
@@ -770,7 +781,8 @@ class MainWindow(QMainWindow):
             dlg.raise_()
             dlg.activateWindow()
             return
-        dlg = SettingsDialog(self, devices=self._all_devices)
+        dlg = SettingsDialog(self, devices=self._all_devices,
+                             widget_manager=self._widget_mgr)
         self._settings_dialog = dlg
         dlg.exec()
         scale_changed = getattr(dlg, "_scale_changed", False)
@@ -1313,6 +1325,11 @@ class MainWindow(QMainWindow):
             try:
                 self._tray.hide_quick()
                 self._tray._tray.hide()
+            except Exception:
+                pass
+        if self._widget_mgr is not None:
+            try:
+                self._widget_mgr.shutdown()
             except Exception:
                 pass
         self._jobs.shutdown()

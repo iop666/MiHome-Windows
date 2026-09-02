@@ -265,6 +265,29 @@ class TrayQuickWindow(QDialog):
         self._list_view_h = height if height is not None else 4 * 56 + 3 * 6
         self._scroll.setFixedHeight(self._list_view_h)
 
+    def _fit_grid_height(self) -> None:
+        """网格视图按实际行数收缩可视高度，避免设备少时底部大面积空白。
+
+        多于 4 行的仍维持原 4 行可视 + 滚动条。
+        """
+        import math
+        import shiboken6
+
+        if not shiboken6.isValid(self):
+            return
+        if self._expanded or settings_store.get_tray_always_expand():
+            return
+        cards = [d for d in self._tray_dids
+                 if any(x.did == d for x in self._devices)]
+        if not cards:
+            return
+        rows = math.ceil(len(cards) / max(1, self._columns))
+        need = rows * 56 + max(0, rows - 1) * 6 + 2
+        target = min(max(need, 64), 4 * 56 + 3 * 6)
+        if abs(target - self._scroll.height()) > 2:
+            self._set_list_view_h(target)
+            self._sync_tray_height()
+
     def _fit_expanded_view(self) -> None:
         """竖排态按内容放大可视区（内容含异步行，显示后测量一次）。"""
         import shiboken6
@@ -580,6 +603,7 @@ class TrayQuickWindow(QDialog):
         else:
             self._set_list_view_h()  # 收起/重开后恢复默认网格可视高度
             self._build_grid(cards)
+            QTimer.singleShot(0, self._fit_grid_height)
         online_dids = [d for d in dids if lookup.get(d) and lookup[d].online
                        and self._known_power.get(d) is None]
         if online_dids:
