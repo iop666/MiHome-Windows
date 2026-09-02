@@ -57,3 +57,6 @@ logs/
 .coverage
 htmlcov/
 .pytest_cache/
+
+# ---- UI 预览截图（离屏渲染自查用，不入库）----
+ui_preview/

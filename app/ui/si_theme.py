@@ -46,87 +46,89 @@ WHITE = "#ffffff"
 # 深/浅调色板：语义键 -> 色值。新增颜色一律进这里，不要在界面代码写死
 # ----------------------------------------------------------------------------
 PALETTES: dict[str, dict[str, str]] = {
-    "dark": dict(
-        WINDOW_BG="#1e1f24",
-        TITLE_BAR_BG="#1a1b20",
-        TITLE_BAR_BORDER="#252630",
-        CARD="#2a2c32",
-        CARD_HOVER="#333540",
-        CARD_BORDER_HOVER="#404252",
-        SURFACE="#2e2f36",          # 输入框/小按钮/Toast 底
-        SURFACE_PRESSED="#1f1f23",  # 电源钮忙碌底
-        PRESSED="#17171a",          # 按下态
-        BTN_PRESSED="#25262e",      # 次级按钮按下
-        BTN_HOVER="#3a3b44",
-        LINE="#35363f",
-        SCROLLBAR="#35363f",
-        SCROLLBAR_HOVER="#4a4b55",
-        TEXT_PRIMARY="#e8e8ea",
-        TEXT_SECONDARY="#8a8b93",
-        TEXT_MUTED="#7c7d83",
-        TEXT_SUBTLE="#9a9aa0",
-        TEXT_DISABLED="#555558",
-        TEXT_FAINT="#444448",
-        OFFLINE_CARD="#1a1b20",
-        OFFLINE_TEXT="#6e6e78",
-        OFFLINE_SUB="#5a5b64",
-        ICON_DIM="#7a7b83",
-        ICON_MUTED="#a0a0aa",
-        HOME_HOVER="#b9babf",
-        HOME_PRESSED="#85868b",
-        THUMB="#ffffff",               # 滑块拇指：深色模式白
-        STATE_OFF="#40434f",
-        STATE_UNKNOWN_BG="#222227",
-        STATE_UNKNOWN_BORDER="#3a3a40",
-        STATE_UNKNOWN_HOVER="#2a2a30",
-        ERROR_TEXT="#e06060",
-        DEL_TEXT="#9a6a6a",
-        DEL_BORDER="#3a2f2f",
-        DEL_BORDER_HOVER="#6b2f2f",
-        WARN_BG="#3a2d12",
-        WARN_BORDER="#5a4220",
-        WARN_TEXT="#e8c87a",
-    ),
+    # 米家浅色风：灰画布 + 白卡片（对齐小米设计语言 miloco token）
     "light": dict(
-        WINDOW_BG="#f2f3f5",
-        TITLE_BAR_BG="#ececef",
-        TITLE_BAR_BORDER="#dcdfe4",
-        CARD="#ffffff",
-        CARD_HOVER="#f4f5f7",
-        CARD_BORDER_HOVER="#d0d3da",
-        SURFACE="#eef0f3",
-        SURFACE_PRESSED="#e4e6ea",
-        PRESSED="#d9dade",
-        BTN_PRESSED="#dfe1e6",
-        BTN_HOVER="#e9eaee",
-        LINE="#e3e4e8",
-        SCROLLBAR="#c9cbd2",
-        SCROLLBAR_HOVER="#b0b3bc",
-        TEXT_PRIMARY="#17181c",
-        TEXT_SECONDARY="#6b6d76",
-        TEXT_MUTED="#85878e",
-        TEXT_SUBTLE="#8a8b93",
-        TEXT_DISABLED="#b4b6bc",
-        TEXT_FAINT="#c6c8ce",
-        OFFLINE_CARD="#f0f0f2",
-        OFFLINE_TEXT="#a0a2a8",
-        OFFLINE_SUB="#b6b8bf",
-        ICON_DIM="#85878e",
-        ICON_MUTED="#9a9aa0",
-        HOME_HOVER="#55565c",
-        HOME_PRESSED="#75767c",
-        THUMB="#9a9ea6",               # 滑块拇指：浅色模式中深灰（白底上清晰可见）
-        STATE_OFF="#c4c8d0",
-        STATE_UNKNOWN_BG="#ececef",
-        STATE_UNKNOWN_BORDER="#c9cbd2",
-        STATE_UNKNOWN_HOVER="#e2e3e8",
-        ERROR_TEXT="#c62828",
-        DEL_TEXT="#b05a5a",
-        DEL_BORDER="#e8c5c5",
-        DEL_BORDER_HOVER="#e09b9b",
-        WARN_BG="#fdf3d8",
-        WARN_BORDER="#e8d49a",
-        WARN_TEXT="#8a6d1f",
+        WINDOW_BG="#F4F5F7",
+        TITLE_BAR_BG="#FFFFFF",
+        TITLE_BAR_BORDER="#E5E5E5",
+        CARD="#FFFFFF",
+        CARD_HOVER="#F7F8FA",
+        CARD_BORDER_HOVER="#D8DBE0",
+        SURFACE="#F0F1F3",           # 输入框/小按钮/Toast 底
+        SURFACE_PRESSED="#E6E8EB",   # 电源钮忙碌底
+        PRESSED="#E2E4E7",           # 按下态
+        BTN_PRESSED="#E2E4E7",       # 次级按钮按下
+        BTN_HOVER="#EDEEF1",
+        LINE="#E5E5E5",
+        SCROLLBAR="#D5D7DB",
+        SCROLLBAR_HOVER="#B8BCC3",
+        TEXT_PRIMARY="#1F1F1F",
+        TEXT_SECONDARY="#6B6B6B",
+        TEXT_MUTED="#9A9A9A",
+        TEXT_SUBTLE="#7A7A7A",
+        TEXT_DISABLED="#C5C5C5",
+        TEXT_FAINT="#D3D5D9",
+        OFFLINE_CARD="#EBECEE",
+        OFFLINE_TEXT="#9A9CA2",
+        OFFLINE_SUB="#B4B6BB",
+        ICON_DIM="#8F9399",
+        ICON_MUTED="#B5B8BE",
+        HOME_HOVER="#4A4C52",
+        HOME_PRESSED="#70737A",
+        THUMB="#8F9399",              # 滑块拇指：浅色模式中深灰（白底清晰）
+        STATE_OFF="#D4D7DC",
+        STATE_UNKNOWN_BG="#EEF0F2",
+        STATE_UNKNOWN_BORDER="#CFD2D8",
+        STATE_UNKNOWN_HOVER="#E4E6EA",
+        ERROR_TEXT="#D93026",
+        DEL_TEXT="#B05050",
+        DEL_BORDER="#EBD6D6",
+        DEL_BORDER_HOVER="#E0A8A8",
+        WARN_BG="#FDF4E3",
+        WARN_BORDER="#EFD8A8",
+        WARN_TEXT="#8A6420",
+    ),
+    # 米家深色风：近黑画布 + 低饱和卡片（对齐 miloco dark token）
+    "dark": dict(
+        WINDOW_BG="#0E0E0E",
+        TITLE_BAR_BG="#0E0E0E",
+        TITLE_BAR_BORDER="#2A2A2A",
+        CARD="#161616",
+        CARD_HOVER="#1F1F1F",
+        CARD_BORDER_HOVER="#383838",
+        SURFACE="#1F1F1F",           # 输入框/小按钮/Toast 底
+        SURFACE_PRESSED="#191919",   # 电源钮忙碌底
+        PRESSED="#131313",           # 按下态
+        BTN_PRESSED="#1C1C1C",       # 次级按钮按下
+        BTN_HOVER="#242424",
+        LINE="#2A2A2A",
+        SCROLLBAR="#333333",
+        SCROLLBAR_HOVER="#474747",
+        TEXT_PRIMARY="#F5F5F5",
+        TEXT_SECONDARY="#B5B5B5",
+        TEXT_MUTED="#8A8A8A",
+        TEXT_SUBTLE="#9E9E9E",
+        TEXT_DISABLED="#555555",
+        TEXT_FAINT="#4A4A4A",
+        OFFLINE_CARD="#111111",
+        OFFLINE_TEXT="#7E7E7E",
+        OFFLINE_SUB="#666666",
+        ICON_DIM="#9C9CA2",
+        ICON_MUTED="#B5B5B5",
+        HOME_HOVER="#CDCDCD",
+        HOME_PRESSED="#999999",
+        THUMB="#FFFFFF",               # 滑块拇指：深色模式白
+        STATE_OFF="#3A3A3A",
+        STATE_UNKNOWN_BG="#1C1C1C",
+        STATE_UNKNOWN_BORDER="#343434",
+        STATE_UNKNOWN_HOVER="#232323",
+        ERROR_TEXT="#E05A5A",
+        DEL_TEXT="#C06A6A",
+        DEL_BORDER="#3A2A2A",
+        DEL_BORDER_HOVER="#7A3333",
+        WARN_BG="#332A14",
+        WARN_BORDER="#5A4520",
+        WARN_TEXT="#E2C07A",
     ),
 }
 
@@ -185,7 +187,7 @@ class SiColors(metaclass=_PaletteMeta):
 # ----------------------------------------------------------------------------
 _QSS_TEMPLATE = Template("""
 * {
-    font-family: "Microsoft YaHei UI", "Segoe UI";
+    font-family: "MiSans", "Microsoft YaHei UI", "Segoe UI";
     font-size: 10pt;
     color: $TEXT_PRIMARY;
 }

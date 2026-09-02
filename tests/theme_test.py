@@ -60,7 +60,7 @@ app.processEvents()
 
 img = win.grab().toImage()
 bg = img.pixelColor(500, 18)
-assert bg.name().upper() == "#ECECEF", f"浅色标题栏异常: {bg.name()}"
+assert bg.name().upper() == "#FFFFFF", f"浅色标题栏异常: {bg.name()}"
 card = next(iter(win._cards.values()))
 cimg = card.grab().toImage()
 cc = cimg.pixelColor(5, 5)
@@ -73,18 +73,18 @@ app.processEvents()
 assert si_theme.current_theme() == "dark"
 img = win.grab().toImage()
 bg = img.pixelColor(500, 18)
-assert bg.name().upper() == "#1A1B20", f"深色标题栏异常: {bg.name()}"
+assert bg.name().upper() == "#0E0E0E", f"深色标题栏异常: {bg.name()}"
 card = next(iter(win._cards.values()))
 cimg = card.grab().toImage()
 cc = cimg.pixelColor(5, 5)
-assert cc.name().upper() == "#2A2C32", f"深色卡片底异常: {cc.name()}"
+assert cc.name().upper() == "#161616", f"深色卡片底异常: {cc.name()}"
 print("4. 切换深色重建 OK")
 
 # 切回浅色
 win.apply_theme_mode("light")
 app.processEvents()
 img = win.grab().toImage()
-assert img.pixelColor(500, 18).name().upper() == "#ECECEF"
+assert img.pixelColor(500, 18).name().upper() == "#FFFFFF"
 print("4b. 切回浅色 OK")
 
 # ---------- 5. 设置页：下拉预览 + 取消还原 ----------
@@ -146,7 +146,7 @@ if win._tray is not None:
     # 新窗口面板底色取当前调色板
     img = win._tray._quick._root.grab().toImage()
     assert img.pixelColor(150, img.height() // 3).name().upper() in (
-        "#1E1F24", "#F2F3F5", "#2A2C32", "#FFFFFF")
+        "#1E1F24", "#F2F3F5", "#161616", "#FFFFFF")
     win._tray.hide_quick()
     app.processEvents()
 print("7. 托盘整窗重建 + 自动恢复显示 OK")
