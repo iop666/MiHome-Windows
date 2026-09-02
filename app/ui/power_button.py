@@ -4,7 +4,9 @@
 """三态圆形电源按钮：设备卡片、托盘快捷行、详情电源行共用。
 
 开=米家绿、关=中灰、未知=描边空心；另有离线与忙碌两个覆盖态。
-配色在每次 _apply() 时从当前调色板取值，主题切换后重建控件即生效。
+配色在每次 _apply() 时从调色板取值；colors 缺省用全局 SiColors
+（跟随应用主题），桌面小组件可传入固定明暗的调色板代理实现
+「本组件固定浅/深色」，不受全局主题切换影响。
 """
 
 from PySide6.QtCore import QSize, Qt
@@ -18,12 +20,14 @@ from app.ui.si_theme import SiColors
 class PowerButton(QPushButton):
     """state: True 开 / False 关 / None 未知（或未确认能力）。"""
 
-    def __init__(self, size: int, icon_size: int | None = None, parent=None):
+    def __init__(self, size: int, icon_size: int | None = None, parent=None,
+                 colors=None):
         super().__init__(parent)
         self._size = size
         self._state: bool | None = None
         self._online = True
         self._busy = False
+        self._col = colors if colors is not None else SiColors
         self.setObjectName("powerBtn")
         side = icon_size if icon_size is not None else int(size * 0.7)
         self.setIconSize(QSize(side, side))
@@ -51,34 +55,34 @@ class PowerButton(QPushButton):
         self._apply()
 
     def _apply(self) -> None:
+        col = self._col
         radius = self._size // 2
         if not self._online:
-            self.setIcon(qta.icon('mdi.power', color=SiColors.ICON_DIM))
+            self.setIcon(qta.icon('mdi.power', color=col.ICON_DIM))
             self.setStyleSheet(
-                f"QPushButton#powerBtn {{ background: {SiColors.SURFACE}; border: none;"
+                f"QPushButton#powerBtn {{ background: {col.SURFACE}; border: none;"
                 f" border-radius: {radius}px; }}"
             )
             return
         if self._busy:
-            self.setIcon(qta.icon('mdi.power', color=SiColors.ICON_DIM))
+            self.setIcon(qta.icon('mdi.power', color=col.ICON_DIM))
             self.setStyleSheet(
-                f"QPushButton#powerBtn {{ background: {SiColors.SURFACE_PRESSED}; border: none;"
+                f"QPushButton#powerBtn {{ background: {col.SURFACE_PRESSED}; border: none;"
                 f" border-radius: {radius}px; }}"
             )
             return
         if self._state is None:
-            self.setIcon(qta.icon('mdi.circle-outline', color=SiColors.ICON_DIM))
+            self.setIcon(qta.icon('mdi.circle-outline', color=col.ICON_DIM))
             self.setStyleSheet(
-                f"QPushButton#powerBtn {{ background: {SiColors.STATE_UNKNOWN_BG};"
-                f" border: 2px solid {SiColors.STATE_UNKNOWN_BORDER}; border-radius: {radius}px; }}"
-                f"QPushButton#powerBtn:hover {{ background: {SiColors.STATE_UNKNOWN_HOVER}; }}"
+                f"QPushButton#powerBtn {{ background: {col.STATE_UNKNOWN_BG};"
+                f" border: 2px solid {col.STATE_UNKNOWN_BORDER}; border-radius: {radius}px; }}"
+                f"QPushButton#powerBtn:hover {{ background: {col.STATE_UNKNOWN_HOVER}; }}"
             )
             return
-        color = SiColors.THEME if self._state else SiColors.STATE_OFF
-        self.setIcon(qta.icon('mdi.power', color=SiColors.WHITE))
+        color = col.THEME if self._state else col.STATE_OFF
+        self.setIcon(qta.icon('mdi.power', color=col.WHITE))
         self.setStyleSheet(
             f"QPushButton#powerBtn {{ background: {color}; border: none;"
             f" border-radius: {radius}px; }}"
-            f"QPushButton#powerBtn:pressed {{ background: {SiColors.PRESSED}; }}"
+            f"QPushButton#powerBtn:pressed {{ background: {col.PRESSED}; }}"
         )
-

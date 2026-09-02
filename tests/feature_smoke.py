@@ -277,6 +277,18 @@ _win.apply_config({**_wcfg, "locked": False})  # 解锁不应崩
 _win.close()
 print("7. 桌面小组件：无标题栏/无 did/开关回填/提示适配 OK")
 
+# 小组件外观：固定明暗切换即时重建（不崩、取色对象正确）
+from app.ui.si_theme import SiColors as _SiColors
+_cfg_dark = dict(_wcfg, theme_mode="dark")
+_win2 = DesktopWidget(_WidgetMgr(), _WidgetSvc(), _FakeJobs(), _cfg_dark)
+app.processEvents()
+assert _win2._col is not _SiColors and str(_win2._col.CARD).startswith("#")
+_win2.apply_config(dict(_wcfg, theme_mode="light"))
+assert _win2._theme_mode == "light"
+_win2.apply_config(dict(_wcfg, theme_mode="light"), force_rebuild=True)
+_win2.close()
+print("7b. 小组件固定明暗切换 OK")
+
 popup.close()
 panel.deleteLater()
 print("FEATURE SMOKE PASS")

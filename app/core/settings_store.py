@@ -30,6 +30,7 @@ _DEFAULTS: dict = {
     "tray_always_expand": False,  # 托盘设备行常显调节（免点开），调节项仍可在托盘管理配置
     "tray_position": "bottom_right",  # 托盘快捷窗口弹出位置：bottom_right / cursor（跟随鼠标上方）
     "tray_icon_color": "white",  # 托盘图标颜色：white(默认) / black / green(品牌绿)
+    "tray_show_icons": False,  # 托盘单列模式设备行是否显示产品图（默认关闭）
     "check_update_enabled": True,  # 启动时自动检查 GitHub 新版本
 }
 
@@ -159,6 +160,17 @@ def get_tray_always_expand() -> bool:
 def set_tray_always_expand(value: bool) -> None:
     raw = _read_raw()
     raw["tray_always_expand"] = bool(value)
+    _write_raw(raw)
+
+
+def get_tray_show_icons() -> bool:
+    """托盘单列模式设备行是否显示产品图（默认关闭）。"""
+    return bool(_read_raw().get("tray_show_icons", False))
+
+
+def set_tray_show_icons(value: bool) -> None:
+    raw = _read_raw()
+    raw["tray_show_icons"] = bool(value)
     _write_raw(raw)
 
 

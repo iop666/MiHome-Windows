@@ -77,10 +77,15 @@ def _normalize(w) -> dict | None:
         for k, v in ops_raw.items():
             if isinstance(v, list):
                 device_ops[str(k)] = [str(n) for n in v]
+    # 外观：跟随应用 / 固定浅色 / 固定深色
+    theme_mode = w.get("theme_mode", "app")
+    if theme_mode not in ("app", "light", "dark"):
+        theme_mode = "app"
     return {
         "id": w["id"],
         "dids": dids,
         "title": str(w.get("title") or ""),
+        "theme_mode": theme_mode,
         "devices": devices,
         "device_ops": device_ops,
         "x": _int_or(w.get("x"), 120),

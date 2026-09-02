@@ -54,7 +54,7 @@ _ALL_ROOMS = "全屋"
 _ALL_HOMES = "全部"
 
 # 外部（APP/语音）改状态后卡片靠轮询跟随；批量读一次请求
-_POLL_INTERVAL_MS = 5_000
+_POLL_INTERVAL_MS = 4_000
 _METRICS_INTERVAL_MS = 5 * 60 * 1000
 
 
@@ -346,6 +346,12 @@ class MainWindow(QMainWindow):
         for w in QApplication.topLevelWidgets():
             if isinstance(w, DeviceDetailDialog) and w.isVisible():
                 w.retheme()
+        # 桌面小组件重绘：跟随应用的小组件取新调色板（固定明暗的不受影响）
+        if self._widget_mgr is not None:
+            try:
+                self._widget_mgr.retheme()
+            except Exception:
+                pass
         if self._all_devices:
             self._refresh_power_states(force=False)
 
@@ -933,6 +939,26 @@ class MainWindow(QMainWindow):
         card = self._cards.get(did)
         if card is not None and state is not None:
             card.set_power_state(state)
+        # 主窗口轮询/详情回读的实时状态同时推给桌面小组件
+        if state is not None and self._widget_mgr is not None:
+            try:
+                self._widget_mgr.sync_power_states({did: state})
+            except Exception:
+                pass
+
+    def apply_external_power_sync(self, did: str, state: bool | None) -> None:
+        """小组件/托盘等其它入口改开关后，主窗口侧同步卡片与托盘记忆。"""
+        if state is None:
+            return
+        self._known_power[did] = state
+        card = self._cards.get(did)
+        if card is not None and shiboken6.isValid(card):
+            card.set_power_state(state)
+        if self._tray is not None:
+            try:
+                self._tray.set_devices(self._all_devices, self._known_power)
+            except Exception:
+                pass
 
     def _refresh_metrics(self) -> None:
         """为无开关能力的可见设备批量拉温湿度读数（副标题展示）。
@@ -1266,6 +1292,12 @@ class MainWindow(QMainWindow):
             card.set_power_state(new_state)
         self._known_power[did] = new_state
         self._update_tray_devices()
+        # 主界面点击开关后立即推送给桌面小组件（不等待下一次轮询）
+        if self._widget_mgr is not None:
+            try:
+                self._widget_mgr.sync_power_states({did: new_state})
+            except Exception:
+                pass
         pending = self._power_pending.get(did, 0)
         if pending is None or pending <= 1:
             self._power_pending.pop(did, None)

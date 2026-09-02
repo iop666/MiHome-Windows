@@ -23,6 +23,8 @@ class WidgetManager(QObject):
         super().__init__(parent)
         self._service = service
         self._jobs = jobs
+        # parent 即主窗口：小组件里改开关时要反向同步主窗口卡片/托盘
+        self._host = parent
         self._windows: dict[str, DesktopWidget] = {}
         self._configs: dict[str, dict] = {}
         for cfg in widget_store.load_all():
@@ -97,6 +99,15 @@ class WidgetManager(QObject):
         if cfg is None:
             return
         cfg[field] = value
+        if field == "visible":
+            # 显示/隐藏直接控制窗口显隐（不重建内容）
+            if win is not None:
+                if value:
+                    win.show()
+                else:
+                    win.hide()
+            self._persist()
+            return
         if win is not None:
             win.apply_config(cfg)
         self._persist()
@@ -151,6 +162,42 @@ class WidgetManager(QObject):
                 win.apply_external_power(did, state)
             except Exception:
                 continue
+
+    def sync_power_states(self, states: dict) -> None:
+        """批量推送一批设备开关状态到全部小组件窗口（主窗口轮询结果）。"""
+        if not states:
+            return
+        for win in self._windows.values():
+            if win is None:
+                continue
+            try:
+                for did, state in states.items():
+                    if state is not None:
+                        win.apply_external_power(did, state)
+            except Exception:
+                continue
+
+    def power_changed_everywhere(self, did: str, state: bool | None) -> None:
+        """小组件内改动开关的完整广播：其它小组件 + 主窗口卡片/托盘。"""
+        if state is None:
+            return
+        self.broadcast_power(did, state)
+        host = self._host
+        if host is not None and hasattr(host, "apply_external_power_sync"):
+            try:
+                host.apply_external_power_sync(did, state)
+            except Exception:
+                pass
+
+    def retheme(self) -> None:
+        """应用主题切换后强制全部小组件重建内容（取新调色板）。"""
+        for wid, cfg in list(self._configs.items()):
+            win = self._windows.get(wid)
+            if win is not None:
+                try:
+                    win.apply_config(dict(cfg), force_rebuild=True)
+                except Exception:
+                    continue
 
     def _persist(self) -> None:
         widget_store.save_all(list(self._configs.values()))

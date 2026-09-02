@@ -32,13 +32,14 @@ from app.core.jobs import JobExecutor
 from app.core.service import MijiaService
 from app.ui.power_button import PowerButton
 from app.ui.quick_ops import QuickOpsPopup
-from app.ui.si_theme import SiColors
+from app.ui.si_theme import SiColors, palette_for
 from app.ui.toast import Toast
 
 _DESIGN_W = 268
 # 开关圆钮与主界面电源钮同尺寸，避免与下方调节行高度差过大
 _POWER_BTN_SIZE = 36
-_POWER_POLL_MS = 6000
+# 小组件自轮询开关状态的周期（与主窗口轮询节奏一致）
+_POWER_POLL_MS = 4000
 
 
 def _hex_rgba(hex_color: str, alpha: int) -> str:
@@ -51,6 +52,16 @@ def _hex_rgba(hex_color: str, alpha: int) -> str:
     return f"rgba({r},{g},{b},{a:g})"
 
 
+def _resolve_colors(mode: str):
+    """小组件取色对象：固定 light/dark 用代理，其余（跟随应用）用全局。"""
+    if mode in ("light", "dark"):
+        try:
+            return palette_for(mode)
+        except Exception:
+            pass
+    return SiColors
+
+
 class DesktopWidget(QWidget):
     def __init__(self, manager, service: MijiaService, jobs: JobExecutor,
                  cfg: dict):
@@ -60,6 +71,9 @@ class DesktopWidget(QWidget):
         self._jobs = jobs
         self._cfg = dict(cfg)
         self._devices_meta = dict(cfg.get("devices") or {})
+        # 小组件外观：app=跟随应用主题；light/dark=本组件固定明暗
+        self._theme_mode = str(cfg.get("theme_mode") or "app")
+        self._col = _resolve_colors(self._theme_mode)
         self._card: QWidget | None = None
         # did -> 电源钮（就地刷新状态用）；did -> 最近一次已知开关状态
         self._power_btns: dict[str, PowerButton] = {}
@@ -127,8 +141,10 @@ class DesktopWidget(QWidget):
         self._card = card
 
         lay = QVBoxLayout(card)
-        lay.setContentsMargins(2, 2, 2, 0)
-        lay.setSpacing(2)
+        # 四周边距对称（含每台设备的 host 边距）：控件到卡片四边的留白
+        # 等距，避免上下窄左右宽的失衡观感
+        lay.setContentsMargins(6, 6, 6, 6)
+        lay.setSpacing(6)
 
         devices = (self._manager.devices_lookup()
                    if hasattr(self._manager, "devices_lookup") else {})
@@ -151,8 +167,8 @@ class DesktopWidget(QWidget):
         if self._card is None:
             return
         alpha = max(0, int(self._cfg.get("bg_alpha", 90)))
-        rgba = _hex_rgba(SiColors.CARD, alpha)
-        border = _hex_rgba(SiColors.LINE, max(alpha, 1))
+        rgba = _hex_rgba(self._col.CARD, alpha)
+        border = _hex_rgba(self._col.LINE, max(alpha, 1))
         self._card.setStyleSheet(
             f"QFrame#widgetCard {{ background: {rgba};"
             f" border: 1px solid {border};"
@@ -170,14 +186,14 @@ class DesktopWidget(QWidget):
         host = QWidget()
         host.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         lay = QVBoxLayout(host)
-        lay.setContentsMargins(6, 4, 6, 0)
+        lay.setContentsMargins(6, 6, 6, 6)
         lay.setSpacing(4)
 
         # 「开关」行与下方调节模块同款式（SURFACE 圆角功能卡）
         head_card = QFrame()
         head_card.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         head_card.setStyleSheet(
-            f"QFrame {{ background: {SiColors.SURFACE};"
+            f"QFrame {{ background: {self._col.SURFACE};"
             f" border: none; border-radius: 10px; }}")
         head = QHBoxLayout(head_card)
         head.setContentsMargins(10, 7, 10, 7)
@@ -186,10 +202,10 @@ class DesktopWidget(QWidget):
         name_lab.setFont(
             QFont("Microsoft YaHei UI", 9, QFont.Weight.DemiBold))
         name_lab.setStyleSheet(
-            f"color: {SiColors.TEXT_PRIMARY if online else SiColors.OFFLINE_TEXT};"
+            f"color: {self._col.TEXT_PRIMARY if online else self._col.OFFLINE_TEXT};"
             " background: transparent;")
         head.addWidget(name_lab, 1)
-        btn = PowerButton(_POWER_BTN_SIZE, icon_size=24)
+        btn = PowerButton(_POWER_BTN_SIZE, icon_size=24, colors=self._col)
         btn.set_online(online)
         # 重建/回填时立即用最近已知状态（未确认前保持未知态）
         known = self._power_known.get(did)
@@ -214,7 +230,7 @@ class DesktopWidget(QWidget):
         popup = QuickOpsPopup(self._service, self._jobs,
                               self._fake_device(dev, did),
                               parent=host, inline=True, show_header=False,
-                              op_names=op_names)
+                              op_names=op_names, colors=self._col)
         # 调节项异步长出后按内容收放窗口高度；无可用项收起后同样校正
         popup.loaded.connect(lambda: QTimer.singleShot(0, self._refit))
         popup.empty.connect(lambda: QTimer.singleShot(0, self._refit))
@@ -261,12 +277,20 @@ class DesktopWidget(QWidget):
             btn.set_state(state)
 
     def _on_toggle_done(self, did: str, state: bool, btn) -> None:
-        """本窗点击开关成功：回填状态并同步到含同设备的其它小组件。"""
+        """本窗点击开关成功：回填状态并广播（其它小组件 + 主窗口卡片/托盘）。"""
         self._power_known[did] = state
         btn.set_state(state)
         btn.set_busy(False)
         manager = getattr(self, "_manager", None)
-        if manager is not None and hasattr(manager, "broadcast_power"):
+        if manager is None:
+            return
+        if hasattr(manager, "power_changed_everywhere"):
+            try:
+                manager.power_changed_everywhere(did, state)
+                return
+            except Exception:
+                pass
+        if hasattr(manager, "broadcast_power"):
             try:
                 manager.broadcast_power(did, state)
             except Exception:
@@ -336,17 +360,28 @@ class DesktopWidget(QWidget):
     # ---------- 配置应用 ----------
 
     def _content_sig(self, cfg: dict) -> tuple:
-        """内容结构指纹：dids/设备元信息/每设备控件选择 变化才重建。"""
-        return (tuple(cfg.get("dids", [])),
+        """内容结构指纹：外观/设备列表/元信息/控件选择 变化才重建。
+
+        theme_mode 也进指纹：小组件单独切明/暗时颜色取色对象变了，
+        必须整卡重建取新调色板。
+        """
+        return ((cfg.get("theme_mode") or "app"),
+                tuple(cfg.get("dids", [])),
                 tuple(sorted((cfg.get("devices") or {}).items())),
                 tuple(sorted((cfg.get("device_ops") or {}).items())))
 
-    def apply_config(self, cfg: dict) -> None:
+    def apply_config(self, cfg: dict, force_rebuild: bool = False) -> None:
         old_sig = self._content_sig(self._cfg)
         changed_scale = (cfg.get("scale") != self._cfg.get("scale"))
         lock_changed = (cfg.get("locked", True) != self._cfg.get("locked", True))
+        theme_changed = ((cfg.get("theme_mode") or "app")
+                         != self._theme_mode)
         self._cfg = dict(cfg)
         self._devices_meta = dict(cfg.get("devices") or {})
+        new_mode = str(cfg.get("theme_mode") or "app")
+        if new_mode != self._theme_mode:
+            self._theme_mode = new_mode
+            self._col = _resolve_colors(new_mode)
         topmost = bool(cfg.get("topmost", True))
         has = bool(self.windowFlags() & Qt.WindowType.WindowStaysOnTopHint)
         if topmost != has:
@@ -355,9 +390,13 @@ class DesktopWidget(QWidget):
         # 背景透明度：卡片底色与外围边框同透明度变化，控件保持不透明
         if "bg_alpha" in cfg:
             self._paint_bg()
-        # 内容（设备列表/名称/控件选择）变化：整卡重建，避免残留 did 数字
-        if self._content_sig(self._cfg) != old_sig:
+        # 内容变化 / 外观切换 / 全局主题重绘（force）：整卡重建取新调色板
+        if force_rebuild or theme_changed \
+                or self._content_sig(self._cfg) != old_sig:
             self._rebuild_content()
+            if self.isVisible():
+                # 重建后按钮是新的：立即回读一次真实开关状态
+                QTimer.singleShot(200, self._refresh_power_states)
         if changed_scale:
             self._refit()
         if lock_changed:

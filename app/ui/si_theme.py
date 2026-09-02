@@ -182,6 +182,24 @@ class SiColors(metaclass=_PaletteMeta):
     WHITE = WHITE
 
 
+def palette_for(mode: str):
+    """固定调色板代理：属性接口与 SiColors 一致，但绑定指定明暗模式。
+
+    桌面小组件可单独选择「浅色/深色」，不受全局主题影响：构建小组件
+    内容时把代理注入 PowerButton / QuickOpsPopup 等组件，它们取色即
+    从该代理读取，异步渲染的调节行也不会受全局主题切换影响。
+    """
+    if mode not in PALETTES:
+        raise ValueError(f"未知调色板: {mode}")
+    fixed = {
+        k: getattr(SiColors, k)
+        for k in vars(SiColors)
+        if not k.startswith("_") and isinstance(getattr(SiColors, k), str)
+    }
+    import types
+    return types.SimpleNamespace(**PALETTES[mode], **fixed)
+
+
 # ----------------------------------------------------------------------------
 # 全局 QSS 生成：模板占位符 $KEY，由当前调色板填充
 # ----------------------------------------------------------------------------

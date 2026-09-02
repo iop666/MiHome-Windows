@@ -37,6 +37,9 @@ from app.ui.si_theme import (
 _THEME_MODE_LABELS = {"system": "跟随系统", "light": "浅色模式", "dark": "深色模式"}
 _THEME_LABEL_TO_MODE = {v: k for k, v in _THEME_MODE_LABELS.items()}
 
+# 小组件外观（可单独固定明暗）
+_WIDGET_THEME_LABELS = {"app": "跟随应用", "light": "浅色", "dark": "深色"}
+
 _TAB_APPEARANCE, _TAB_TRAY, _TAB_FEATURES, _TAB_WIDGETS = 0, 1, 2, 3
 _TAB_TITLES = ("主题界面", "托盘设置", "应用功能", "小组件")
 # 切页淡入时长：与主页房间切换同款
@@ -315,8 +318,9 @@ class SettingsDialog(OverlayDialog):
         self._always_item, self._always_label, self._always_desc, always_row = \
             self._make_item(
                 "托盘设备常显调节",
-                "托盘快捷窗口的设备行直接展示所选调节项（亮度/色温等），"
-                "无需先点「调节」展开；具体展示哪些项仍可在「托盘管理 → 调节」中勾选增删")
+                "设备行直接展示所选调节项（亮度/色温等），无需先点「调节」展开；"
+                "开启后会切换为单列整行常显，托盘右上角的单列/双列切换按钮将"
+                "隐藏（默认关闭）")
         self._always_toggle = themed_switch()
         self._always_toggle.setChecked(settings_store.get_tray_always_expand())
         _sync_switch(self._always_toggle)
@@ -355,9 +359,21 @@ class SettingsDialog(OverlayDialog):
             self._on_tray_icon_color_changed)
         color_row.addWidget(self._color_combo)
 
+        # ── 托盘单列模式产品图 ──
+        self._rowicon_item, self._rowicon_label, self._rowicon_desc, rowicon_row = \
+            self._make_item(
+                "托盘单列产品图",
+                "托盘切到单列显示时，设备行左侧展示产品图片（联网拉取一次后"
+                "本地缓存）；双列/常显模式不显示，默认关闭")
+        self._rowicon_toggle = themed_switch()
+        self._rowicon_toggle.setChecked(settings_store.get_tray_show_icons())
+        _sync_switch(self._rowicon_toggle)
+        rowicon_row.addWidget(self._rowicon_toggle)
+
         return self._build_scroll([
             self._tray_item, self._start_min_item,
             self._always_item, self._pos_item, self._color_item,
+            self._rowicon_item,
         ])
 
     def _build_features_page(self) -> QScrollArea:
@@ -507,7 +523,8 @@ class SettingsDialog(OverlayDialog):
             "把单个或多个设备固定为小组件（只显示设备控件、无标题栏）："
             "解锁后按住卡片空白处即可拖动摆放，点击 −/+ 以 1% 步进缩放；"
             "「锁定」后不可误拖，需回到本页解锁；「置顶」让小组件浮在其他"
-            "窗口之上；「背景透明」调节卡片透出桌面程度。")
+            "窗口之上；「背景透明」调节卡片透出桌面程度；「外观」可让本组件"
+            "单独固定浅色/深色；每个小组件还可随时「隐藏/显示」。")
         desc.setWordWrap(True)
         desc.setStyleSheet(
             f"color: {SiColors.TEXT_SECONDARY}; background: transparent; font-size: 8pt;")
@@ -658,6 +675,27 @@ class SettingsDialog(OverlayDialog):
         title_row.addWidget(del_btn)
         lay.addLayout(title_row)
 
+        # 外观行：小组件单独固定浅/深色，或跟随应用主题
+        theme_row = QHBoxLayout()
+        theme_lab = QLabel("外观")
+        theme_lab.setStyleSheet(
+            f"color: {SiColors.TEXT_SECONDARY}; background: transparent; font-size: 9pt;")
+        theme_row.addWidget(theme_lab)
+        theme_row.addStretch(1)
+        cur_mode = cfg.get("theme_mode") or "app"
+        self._widget_theme_combo = themed_combo(
+            [_WIDGET_THEME_LABELS[m] for m in ("app", "light", "dark")],
+            current=_WIDGET_THEME_LABELS.get(
+                cur_mode, _WIDGET_THEME_LABELS["app"]))
+        self._widget_theme_combo.setFixedHeight(26)
+        self._widget_theme_combo.setFixedWidth(150)
+        apply_combo_qss(self._widget_theme_combo)
+        self._widget_theme_combo.set_arrow_color(SiColors.TEXT_SECONDARY)
+        self._widget_theme_combo.currentTextChanged.connect(
+            lambda text, w=wid: self._widget_theme(w, text))
+        theme_row.addWidget(self._widget_theme_combo)
+        lay.addLayout(theme_row)
+
         # 缩放行：− / 百分比 / +（1% 步进）
         scale_row = QHBoxLayout()
         scale_lab = QLabel("缩放")
@@ -707,6 +745,16 @@ class SettingsDialog(OverlayDialog):
             lambda _, w=wid, t=cfg["topmost"]: self._widget_update(
                 w, "topmost", not t))
         opt_row.addWidget(top_btn)
+        # 显示/隐藏：添加完成后随时可在列表里显隐（隐藏不删除配置）
+        visible = bool(cfg.get("visible", True))
+        vis_btn = self._widget_row_btn(
+            "隐藏" if visible else "显示", active=visible)
+        vis_btn.setToolTip(
+            "隐藏时小组件从桌面消失（配置保留）；点「显示」可重新出现")
+        vis_btn.clicked.connect(
+            lambda _, w=wid, v=visible: self._widget_update(
+                w, "visible", not v))
+        opt_row.addWidget(vis_btn)
         lay.addLayout(opt_row)
 
         # 背景透明度
@@ -750,6 +798,15 @@ class SettingsDialog(OverlayDialog):
         if dlg.result() == QDialog.DialogCode.Accepted:
             self._widget_mgr.update(wid, "device_ops", dlg.result_map())
 
+    def _widget_theme(self, wid: str, text: str) -> None:
+        """小组件外观切换：跟随应用 / 固定浅色 / 固定深色（即时重建）。"""
+        if self._widget_mgr is None:
+            return
+        value = next(
+            (k for k, label in _WIDGET_THEME_LABELS.items() if label == text),
+            "app")
+        self._widget_mgr.update(wid, "theme_mode", value)
+
     def _widget_title(self, wid: str, text: str) -> None:
         if self._widget_mgr is not None:
             self._widget_mgr.update(wid, "title", text.strip())
@@ -787,7 +844,8 @@ class SettingsDialog(OverlayDialog):
         """主题相关内联样式：构造与 retheme 共用。"""
         panel_card = f"QFrame {{ background: {SiColors.CARD}; border-radius: 10px; }}"
         for item in (self._tray_item, self._start_min_item, self._always_item,
-                     self._pos_item, self._color_item, self._fab_item,
+                     self._pos_item, self._color_item, self._rowicon_item,
+                     self._fab_item,
                      self._theme_item, self._autostart_item,
                      self._speaker_item, self._hide_item, self._scale_item,
                      self._update_item, self._icons_item, self._width_item):
@@ -800,6 +858,7 @@ class SettingsDialog(OverlayDialog):
             f"color: {SiColors.TEXT_PRIMARY}; background: transparent;")
         for label in (self._tray_label, self._start_min_label,
                       self._always_label, self._pos_label, self._color_label,
+                      self._rowicon_label,
                       self._fab_label, self._theme_label,
                       self._autostart_label, self._speaker_label,
                       self._hide_label, self._scale_label,
@@ -809,6 +868,7 @@ class SettingsDialog(OverlayDialog):
                 f"color: {SiColors.TEXT_PRIMARY}; background: transparent; font-size: 10pt;")
         for desc in (self._tray_desc, self._start_min_desc,
                      self._always_desc, self._pos_desc, self._color_desc,
+                     self._rowicon_desc,
                      self._fab_desc, self._theme_desc,
                      self._autostart_desc, self._speaker_desc,
                      self._hide_desc, self._scale_desc, self._update_desc,
@@ -961,6 +1021,8 @@ class SettingsDialog(OverlayDialog):
         if 0 <= color_idx < len(self._icon_color_options):
             settings_store.set_tray_icon_color(
                 self._icon_color_options[color_idx][0])
+        # 托盘单列产品图
+        settings_store.set_tray_show_icons(self._rowicon_toggle.isChecked())
         # 默认输出音箱：下拉文案反查 did；无音箱时被灰置为「自动」存空串
         idx = self._speaker_combo.currentIndex()
         if 0 <= idx < len(self._speaker_options):

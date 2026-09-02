@@ -94,6 +94,22 @@ class TrayController:
         self._quick.manage_requested.connect(self._on_manage)
         self._quick.open_device_requested.connect(self._on_open_device)
         self._quick.open_main_requested.connect(self._show_main)
+        # 托盘里点开关后立即同步主窗口卡片/记忆与桌面小组件
+        self._quick.power_changed.connect(self._on_quick_power_changed)
+
+    def _on_quick_power_changed(self, did: str, state) -> None:
+        """托盘快捷行开关改动：主窗口记忆/卡片 + 桌面小组件即时同步。"""
+        main = self._main
+        try:
+            main.apply_external_power_sync(did, state)
+        except Exception:
+            pass
+        mgr = getattr(main, "_widget_mgr", None)
+        if mgr is not None:
+            try:
+                mgr.broadcast_power(did, state)
+            except Exception:
+                pass
 
     def _emit_manage(self) -> None:
         # 经方法转发而非构造期绑定信号：retheme 重建窗口后菜单仍指向新窗口

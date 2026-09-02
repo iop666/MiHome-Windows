@@ -47,6 +47,7 @@ class TrayQuickWindow(QDialog):
     manage_requested = Signal()
     open_device_requested = Signal(str)  # did
     open_main_requested = Signal()
+    power_changed = Signal(str, object)  # (did, new_state) 开关被本窗口改动
 
     def __init__(self, service: MijiaService, jobs: JobExecutor, parent=None):
         super().__init__(parent)
@@ -66,6 +67,11 @@ class TrayQuickWindow(QDialog):
         self._list_view_h = 4 * 56 + 3 * 6
         # 结构指纹：set_devices 只在结构变化时才重建（轮询只做就地刷新）
         self._last_sig: object = None
+        # 单列模式产品图（设置项默认关闭）：model -> 缩放好的 QPixmap
+        self._icon_show: bool = settings_store.get_tray_show_icons()
+        self._row_icons: dict = {}
+        self._icon_pending: set[str] = set()
+        self._icon_fetching = False
 
         self.setWindowFlags(
             Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
@@ -208,7 +214,9 @@ class TrayQuickWindow(QDialog):
         self._outer_lay.addWidget(self._audio_bar)
         self._outer_lay.addWidget(self._root)
         self.resize(300, 380)
-        self.setMinimumSize(280, 360)
+        # 最小高度只兜底内容（高度由 _sync_tray_height 按内容算）：
+        # 曾设 360 会把设备少时的窗口硬撑高，内容上方/内部出现大片空白
+        self.setMinimumSize(280, 120)
         self._tray_dids: list[str] = tray_store.load()
         # 呼出/隐藏动画与点击外部隐藏
         self._target_pos: QPoint | None = None
@@ -575,6 +583,82 @@ class TrayQuickWindow(QDialog):
             if btn is not None:
                 btn.set_state(st)
 
+    # ---------- 单列模式产品图（磁盘缓存命中即显，缺失异步拉一次） ----------
+
+    def _prime_row_icons(self) -> None:
+        import shiboken6
+
+        if not shiboken6.isValid(self):
+            return
+        if not (self._icon_show and self._columns == 1) or self._icon_fetching:
+            return
+        from app.core import icons as icon_cache
+
+        lookup = {d.did: d for d in self._devices}
+        seen: set[str] = set()
+        todo: list[str] = []
+        for did in self._tray_dids:
+            dev = lookup.get(did)
+            if dev is None or not dev.model or dev.model in seen:
+                continue
+            seen.add(dev.model)
+            if dev.model in self._row_icons:
+                continue
+            pix = icon_cache.load_pixmap(dev.model, 40)
+            if pix is not None:
+                self._row_icons[dev.model] = pix
+                self._apply_row_icon(dev.model, pix)
+                continue
+            if dev.model not in self._icon_pending:
+                self._icon_pending.add(dev.model)
+                todo.append(dev.model)
+        if not todo:
+            return
+        self._icon_fetching = True
+        self._jobs.submit(
+            lambda todo=todo: {
+                m: self._service.fetch_product_icon(m) for m in todo},
+            on_success=self._on_row_icons_fetched,
+            on_error=self._on_row_icons_failed,
+        )
+
+    def _on_row_icons_fetched(self, mapping: dict) -> None:
+        import shiboken6
+
+        if not shiboken6.isValid(self):
+            return
+        self._icon_fetching = False
+        from app.core import icons as icon_cache
+
+        for model, data in (mapping or {}).items():
+            self._icon_pending.discard(model)
+            if not data:
+                continue
+            if icon_cache.save_bytes(model, data):
+                pix = icon_cache.load_pixmap(model, 40)
+                if pix is not None:
+                    self._row_icons[model] = pix
+                    self._apply_row_icon(model, pix)
+
+    def _on_row_icons_failed(self, error: Exception) -> None:
+        self._icon_fetching = False
+        self._icon_pending.clear()
+
+    def _apply_row_icon(self, model: str, pixmap) -> None:
+        import shiboken6
+
+        lookup = {d.did: d for d in self._devices}
+        for did in self._tray_dids:
+            dev = lookup.get(did)
+            if dev is None or dev.model != model:
+                continue
+            row = self._rows_by_did.get(did)
+            if row is None or not shiboken6.isValid(row):
+                continue
+            lab = getattr(row, "_icon_lab", None)
+            if lab is not None and shiboken6.isValid(lab):
+                lab.setPixmap(pixmap)
+
     # ---------- 列表重建（网格 / 展开竖排） ----------
 
     def _rebuild(self) -> None:
@@ -611,6 +695,10 @@ class TrayQuickWindow(QDialog):
         # 竖排（常显或手动展开）按内容放大可视区
         if always_mode or self._expanded:
             QTimer.singleShot(120, self._fit_expanded_view)
+        # 单列网格 + 开启产品图：重建后补拉缺失型号的图片
+        if self._icon_show and not always_mode and not self._expanded \
+                and self._columns == 1:
+            QTimer.singleShot(40, self._prime_row_icons)
 
     def _build_grid(self, cards: list[DeviceInfo]) -> None:
         """紧凑网格视图（原单/双列卡片），行头可点击展开。"""
@@ -622,7 +710,8 @@ class TrayQuickWindow(QDialog):
         self._grid.setHorizontalSpacing(6)
         self._grid.setVerticalSpacing(6)
         for idx, dev in enumerate(cards):
-            head = self._make_row_header(dev)
+            # 双列网格空间有限：隐藏行内「调节」按钮，需要调节时切单列
+            head = self._make_row_header(dev, compact=(cols == 2))
             self._grid.addWidget(head, idx // cols, idx % cols)
         self._list_lay.addLayout(self._grid)
         self._list_lay.addStretch(1)
@@ -694,18 +783,24 @@ class TrayQuickWindow(QDialog):
         Toast.info(self, "该设备没有可选的调节项", 2000)
 
     def _destroy_grid(self) -> None:
-        # 移除并销毁列表里的全部条目：网格布局 或 竖排块 widget
+        # 移除并销毁列表里的全部条目：网格布局 或 竖排块 widget。
+        # 关键：先 setParent(None) 把旧控件从 _host 摘下再 deleteLater——
+        # 只 deleteLater 的控件在删除事件处理前仍是 _host 的子控件，会
+        # 带着旧几何继续绘制，反复重建后新旧行重叠（曾表现为单列/双列
+        # 内容同时出现、控件叠在一起）。
         self._rows_by_did.clear()
         self._sub_labels.clear()
         self._sub_widths.clear()
         while self._list_lay.count():
             item = self._list_lay.takeAt(0)
             if w := item.widget():
+                w.setParent(None)
                 w.deleteLater()
             elif lay := item.layout():
                 while lay.count():
                     it = lay.takeAt(0)
                     if w2 := it.widget():
+                        w2.setParent(None)
                         w2.deleteLater()
                 lay.deleteLater()
         self._grid = None
@@ -736,7 +831,8 @@ class TrayQuickWindow(QDialog):
         label.setToolTip(text)
 
     def _make_row_header(self, dev: DeviceInfo, avail: int | None = None,
-                         always_mode: bool = False) -> QFrame:
+                         always_mode: bool = False,
+                         compact: bool = False) -> QFrame:
         from PySide6.QtWidgets import QSizePolicy
 
         row = QFrame()
@@ -753,10 +849,24 @@ class TrayQuickWindow(QDialog):
         lay.setContentsMargins(12, 8, 12, 8)
         lay.setSpacing(10)
 
+        # 单列模式 + 开启产品图：设备行左侧显示产品图（自动缩放适应行高）
+        icon_lab = None
+        if self._icon_show and not always_mode and not compact \
+                and self._columns == 1 and dev.model:
+            icon_lab = QLabel()
+            icon_lab.setObjectName("trayDevIcon")
+            icon_lab.setFixedSize(40, 40)
+            icon_lab.setAlignment(Qt.AlignCenter)
+            icon_lab.setStyleSheet("background: transparent; border: none;")
+            pix = self._row_icons.get(dev.model)
+            if pix is not None:
+                icon_lab.setPixmap(pix)
+            lay.addWidget(icon_lab, 0, Qt.AlignVCenter)
+
         known = self._known_power.get(dev.did)
         if avail is None:
-            avail = self._card_text_width(known is not None,
-                                          extra_expand=not always_mode)
+            avail = self._card_text_width(
+                known is not None, extra_expand=not (always_mode or compact))
 
         text_col = QVBoxLayout()
         text_col.setSpacing(2)
@@ -786,8 +896,9 @@ class TrayQuickWindow(QDialog):
         text_col.addWidget(sub)
         lay.addLayout(text_col, stretch=1)
 
-        # 展开（调节）按钮：常显模式下无需展开钮（调节恒在行内）
-        if not always_mode:
+        # 展开（调节）按钮：常显模式无需（调节恒在行内）；双列网格空间
+        # 有限也隐藏——需要调某个设备时切到单列即可展开
+        if not always_mode and not compact:
             is_expanded = dev.did in self._expanded
             chev = QPushButton()
             chev.setFixedSize(22, 22)
@@ -822,6 +933,7 @@ class TrayQuickWindow(QDialog):
             lay.addWidget(btn)
         row._did = dev.did  # type: ignore[attr-defined]
         row._power_btn = btn  # type: ignore[attr-defined]
+        row._icon_lab = icon_lab  # type: ignore[attr-defined]
 
         row.mousePressEvent = (  # type: ignore[attr-defined]
             lambda e, d=dev.did: self.open_device_requested.emit(d)
@@ -834,6 +946,7 @@ class TrayQuickWindow(QDialog):
         self._known_power[did] = ns
         btn.set_state(ns)
         btn.set_busy(False)
+        self.power_changed.emit(did, ns)
 
     def show_near_tray(self, anchor_global: QPoint | None = None) -> None:
         """托盘图标/鼠标位置（可选）呼出；显示前重建以保证托盘存储一致。"""

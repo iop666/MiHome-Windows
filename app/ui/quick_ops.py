@@ -71,8 +71,13 @@ class QuickOpsPopup(QFrame):
     def __init__(self, service: MijiaService, jobs: JobExecutor,
                  device: DeviceInfo, parent=None,
                  inline: bool = False, show_header: bool = True,
-                 op_names: list[str] | None = None):
-        """op_names=None 用默认常用项（≤2 滑块+≤2 枚举）；否则按名筛选。"""
+                 op_names: list[str] | None = None,
+                 colors=None):
+        """op_names=None 用默认常用项（≤2 滑块+≤2 枚举）；否则按名筛选。
+
+        colors 缺省用全局 SiColors（跟随应用主题）；桌面小组件可传入
+        固定明暗的调色板代理，实现单组件主题不受全局切换影响。
+        """
         super().__init__(parent)
         self._service = service
         self._jobs = jobs
@@ -83,6 +88,7 @@ class QuickOpsPopup(QFrame):
         self._op_names = op_names
         self._anchor: QPoint | None = None
         self._values: dict[str, object] = {}
+        self._col = colors if colors is not None else SiColors
 
         if not inline:
             self.setWindowFlags(
@@ -91,8 +97,8 @@ class QuickOpsPopup(QFrame):
             self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
             self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
             self.setStyleSheet(
-                f"QFrame#quickPanel {{ background: {SiColors.WINDOW_BG};"
-                f" border: 1px solid {SiColors.LINE}; border-radius: 12px; }}")
+                f"QFrame#quickPanel {{ background: {self._col.WINDOW_BG};"
+                f" border: 1px solid {self._col.LINE}; border-radius: 12px; }}")
         # 弹层自身承载内容布局（边框圆角由背景绘制承担）
         self._lay = QVBoxLayout(self)
         self._lay.setContentsMargins(14, 12, 14, 12) if not inline \
@@ -105,18 +111,18 @@ class QuickOpsPopup(QFrame):
             title = QLabel(_short_desc(self._device.name))
             title.setFont(QFont("Microsoft YaHei UI", 11, QFont.Weight.DemiBold))
             title.setStyleSheet(
-                f"color: {SiColors.TEXT_PRIMARY}; background: transparent;")
+                f"color: {self._col.TEXT_PRIMARY}; background: transparent;")
             sub = QLabel(self._device.room_name
                          + (" · 离线" if not self._online else ""))
             sub.setStyleSheet(
-                f"color: {SiColors.TEXT_SECONDARY}; background: transparent;"
+                f"color: {self._col.TEXT_SECONDARY}; background: transparent;"
                 f" font-size: 8pt;")
             self._lay.addWidget(title)
             self._lay.addWidget(sub)
 
         self._hint = QLabel("正在读取可调项…")
         self._hint.setStyleSheet(
-            f"color: {SiColors.TEXT_SECONDARY}; background: transparent;"
+            f"color: {self._col.TEXT_SECONDARY}; background: transparent;"
             f" font-size: 9pt;")
         self._lay.addWidget(self._hint)
 
@@ -190,7 +196,7 @@ class QuickOpsPopup(QFrame):
         host.setObjectName("quickOpCard")
         host.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         host.setStyleSheet(
-            f"QFrame#quickOpCard {{ background: {SiColors.SURFACE};"
+            f"QFrame#quickOpCard {{ background: {self._col.SURFACE};"
             f" border: none; border-radius: 10px; }}")
         lay = QVBoxLayout(host)
         lay.setContentsMargins(10, 6, 10, 8)
@@ -200,12 +206,12 @@ class QuickOpsPopup(QFrame):
         head.setSpacing(6)
         lab = QLabel(_short_desc(op.desc))
         lab.setFont(QFont("Microsoft YaHei UI", 9, QFont.Weight.Medium))
-        lab.setStyleSheet(f"color: {SiColors.TEXT_PRIMARY}; background: transparent;")
+        lab.setStyleSheet(f"color: {self._col.TEXT_PRIMARY}; background: transparent;")
         head.addWidget(lab)
         head.addStretch(1)
         val_label = QLabel("—")
         val_label.setStyleSheet(
-            f"color: {SiColors.TEXT_SECONDARY}; background: transparent; font-size: 9pt;")
+            f"color: {self._col.TEXT_SECONDARY}; background: transparent; font-size: 9pt;")
         head.addWidget(val_label)
         lay.addLayout(head)
 
@@ -249,13 +255,13 @@ class QuickOpsPopup(QFrame):
 
     def _slider_qss(self) -> str:
         return (
-            f"QSlider::groove:horizontal {{ height: 4px; background: {SiColors.SURFACE};"
+            f"QSlider::groove:horizontal {{ height: 4px; background: {self._col.SURFACE};"
             f" border-radius: 2px; }}"
-            f"QSlider::sub-page:horizontal {{ background: {SiColors.THEME}; border-radius: 2px; }}"
-            f"QSlider::add-page:horizontal {{ background: {SiColors.SURFACE}; border-radius: 2px; }}"
-            f"QSlider::handle:horizontal {{ width: 15px; height: 15px; background: {SiColors.THUMB};"
+            f"QSlider::sub-page:horizontal {{ background: {self._col.THEME}; border-radius: 2px; }}"
+            f"QSlider::add-page:horizontal {{ background: {self._col.SURFACE}; border-radius: 2px; }}"
+            f"QSlider::handle:horizontal {{ width: 15px; height: 15px; background: {self._col.THUMB};"
             f" border-radius: 7px; margin: -6px 0; }}"
-            f"QSlider::handle:horizontal:disabled {{ background: {SiColors.OFFLINE_SUB}; }}"
+            f"QSlider::handle:horizontal:disabled {{ background: {self._col.OFFLINE_SUB}; }}"
         )
 
     # ---------- 枚举 ----------
@@ -295,12 +301,12 @@ class QuickOpsPopup(QFrame):
     def _enum_qss(self, active: bool) -> str:
         if active:
             return (
-                f"QPushButton {{ background: {SiColors.THEME}; border: 1px solid {SiColors.THEME};"
-                f" border-radius: 7px; color: {SiColors.ON_THEME_TEXT}; font-weight: 600; }}")
+                f"QPushButton {{ background: {self._col.THEME}; border: 1px solid {self._col.THEME};"
+                f" border-radius: 7px; color: {self._col.ON_THEME_TEXT}; font-weight: 600; }}")
         return (
-            f"QPushButton {{ background: {SiColors.SURFACE}; border: 1px solid {SiColors.LINE};"
-            f" border-radius: 7px; color: {SiColors.TEXT_PRIMARY}; }}"
-            f"QPushButton:hover {{ border-color: {SiColors.THEME}; }}")
+            f"QPushButton {{ background: {self._col.SURFACE}; border: 1px solid {self._col.LINE};"
+            f" border-radius: 7px; color: {self._col.TEXT_PRIMARY}; }}"
+            f"QPushButton:hover {{ border-color: {self._col.THEME}; }}")
 
     def _highlight_enum(self, btn: QPushButton, active: bool) -> None:
         btn.setStyleSheet(self._enum_qss(active))
