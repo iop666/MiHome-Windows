@@ -15,21 +15,17 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QLabel,
-    QPushButton,
     QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
 from app.siui.components.container import SiRowCard
 
-import qtawesome as qta
-
 from app.core.models import DeviceInfo
 from app.ui.power_button import PowerButton
 from app.ui.si_theme import SiColors
 
 _POWER_BTN_SIZE = 36
-_QUICK_BTN_SIZE = 20
 _CARD_FIXED_WIDTH = 202
 _CARD_FIXED_HEIGHT = 92
 
@@ -38,7 +34,6 @@ _CARD_FIXED_HEIGHT = 92
 
 class DeviceCard(SiRowCard):
     power_clicked = Signal(str)  # did
-    quick_requested = Signal(str)  # did（卡片快捷操作弹层）
     open_requested = Signal(str)  # did
 
     def __init__(self, device: DeviceInfo, parent=None,
@@ -65,21 +60,6 @@ class DeviceCard(SiRowCard):
         # 有可写开关属性后再显示并回填真实状态
         self._power_btn.hide()
         self._power_btn.set_online(self._online)
-
-        # 快捷操作（调节亮度/色温等）：点击呼出卡片快捷弹层
-        self._quick_btn = QPushButton()
-        self._quick_btn.setFixedSize(_QUICK_BTN_SIZE, _QUICK_BTN_SIZE)
-        self._quick_btn.setCursor(Qt.PointingHandCursor)
-        self._quick_btn.setToolTip("快捷操作")
-        self._quick_btn.setIcon(qta.icon('mdi.tune-variant',
-                                         color=SiColors.TEXT_SECONDARY))
-        self._quick_btn.setIconSize(self._quick_btn.size())
-        self._quick_btn.setStyleSheet(
-            f"QPushButton {{ background: transparent; border: none; border-radius: {_QUICK_BTN_SIZE // 2}px; }}"
-            f"QPushButton:hover {{ background: {SiColors.BTN_HOVER}; }}")
-        self._quick_btn.setEnabled(self._online)
-        self._quick_btn.clicked.connect(
-            lambda: self.quick_requested.emit(device.did))
 
         name_color = SiColors.TEXT_PRIMARY if self._online else SiColors.OFFLINE_TEXT
         self._name_label = QLabel(device.name)
@@ -118,14 +98,12 @@ class DeviceCard(SiRowCard):
         text_lay.addWidget(self._sub_label)
         text_lay.addStretch(1)
 
-        # 右侧按钮列：电源钮 + 快捷操作钮，整体垂直居中
+        # 右侧按钮列：电源钮垂直居中
         btn_col = QWidget()
         btn_col.setAttribute(Qt.WA_TranslucentBackground)
         btn_lay = QVBoxLayout(btn_col)
         btn_lay.setContentsMargins(0, 0, 0, 0)
-        btn_lay.setSpacing(6)
         btn_lay.addWidget(self._power_btn, alignment=Qt.AlignHCenter)
-        btn_lay.addWidget(self._quick_btn, alignment=Qt.AlignHCenter)
 
         lay = self.layout()
         lay.setContentsMargins(14, 10, 14, 10)
@@ -134,11 +112,6 @@ class DeviceCard(SiRowCard):
         lay.addWidget(text_col)
         lay.addStretch(1)
         lay.addWidget(btn_col, alignment=Qt.AlignVCenter)
-
-    @property
-    def quick_btn(self) -> QPushButton:
-        """快捷按钮（主窗口呼出弹层时取锚点坐标用）。"""
-        return self._quick_btn
 
     def set_icon(self, pixmap) -> None:
         """注入产品图（主窗口异步取图完成后调用）。"""

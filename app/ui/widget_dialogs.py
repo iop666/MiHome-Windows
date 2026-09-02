@@ -26,7 +26,7 @@ class DevicePickDialog(QDialog):
 
     def __init__(self, devices: list[DeviceInfo], parent=None):
         super().__init__(parent)
-        self.setWindowTitle("添加桌面小组件")
+        self.setWindowTitle("添加小组件")
         self.setModal(True)
         self.setMinimumSize(340, 420)
         self.setStyleSheet(f"QDialog {{ background: {SiColors.WINDOW_BG}; }}")

@@ -29,6 +29,7 @@ _DEFAULTS: dict = {
     "tray_columns": 2,  # 托盘快捷窗口卡片列数：1 或 2
     "tray_always_expand": False,  # 托盘设备行常显调节（免点开），调节项仍可在托盘管理配置
     "tray_position": "bottom_right",  # 托盘快捷窗口弹出位置：bottom_right / cursor（跟随鼠标上方）
+    "tray_icon_color": "white",  # 托盘图标颜色：white(默认) / black / green(品牌绿)
     "check_update_enabled": True,  # 启动时自动检查 GitHub 新版本
 }
 
@@ -178,6 +179,27 @@ def set_tray_position(value: str) -> None:
     raw = _read_raw()
     raw["tray_position"] = value if value in (
         TRAY_POS_BOTTOM_RIGHT, TRAY_POS_CURSOR) else TRAY_POS_BOTTOM_RIGHT
+    _write_raw(raw)
+
+
+# 托盘图标颜色可选值（white=白为默认；black=黑；green=米家品牌绿）
+TRAY_ICON_WHITE = "white"
+TRAY_ICON_BLACK = "black"
+TRAY_ICON_GREEN = "green"
+
+
+def get_tray_icon_color() -> str:
+    """托盘图标配色：白色（默认）/ 黑色 / 品牌绿。"""
+    value = str(_read_raw().get("tray_icon_color", TRAY_ICON_WHITE))
+    if value not in (TRAY_ICON_WHITE, TRAY_ICON_BLACK, TRAY_ICON_GREEN):
+        return TRAY_ICON_WHITE
+    return value
+
+
+def set_tray_icon_color(value: str) -> None:
+    raw = _read_raw()
+    raw["tray_icon_color"] = value if value in (
+        TRAY_ICON_WHITE, TRAY_ICON_BLACK, TRAY_ICON_GREEN) else TRAY_ICON_WHITE
     _write_raw(raw)
 
 

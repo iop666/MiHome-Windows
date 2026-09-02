@@ -136,5 +136,21 @@ class WidgetManager(QObject):
         if touched:
             self._persist()
 
+    def broadcast_power(self, did: str, state: bool | None) -> None:
+        """某入口改了一台设备开关：同步到所有含该设备的小组件窗口。
+
+        同一设备可能出现在多个小组件里，只在来源窗口回填会留下
+        其它窗口开关状态过期（开着却显示关）的观感问题。
+        """
+        if state is None:
+            return
+        for win in self._windows.values():
+            if win is None:
+                continue
+            try:
+                win.apply_external_power(did, state)
+            except Exception:
+                continue
+
     def _persist(self) -> None:
         widget_store.save_all(list(self._configs.values()))

@@ -109,8 +109,6 @@ class MainWindow(QMainWindow):
         self._current_home: str = ""
         self._current_room = _ALL_ROOMS
         self._settings_dialog: SettingsDialog | None = None
-        # 卡片快捷操作弹层（同一时刻至多一个）
-        self._quick_popup: QWidget | None = None
         # did -> 开关状态记忆；None 表示确认无开关能力。
         # 探测结论是设备的固有属性，跨家庭/房间/刷新复用；
         # 串行队列 FIFO 保证探测与开关写入的回调顺序不会互相覆盖
@@ -122,7 +120,10 @@ class MainWindow(QMainWindow):
         # 产品图：model -> QPixmap（磁盘缓存命中/异步拉取后），重建卡片回填
         self._card_pix: dict = {}
         self._icon_pending: set[str] = set()
-        self._icon_primed = False
+        # 会话内确认无图/拉取失败的型号（避免每次视图变化都重试打网络）；
+        # 产品图开关从关再开时清空，允许重新尝试
+        self._icon_failed: set[str] = set()
+        self._icon_fetching = False
         from app.core.settings_store import get_card_width, get_show_device_icons
         self._card_w = get_card_width()
         self._show_icons = get_show_device_icons()
@@ -186,7 +187,7 @@ class MainWindow(QMainWindow):
             print(f"[Tray] 创建失败: {e}")
             self._tray = None
 
-        # 桌面小组件：随启动恢复，经设置页「桌面小组件」管理
+        # 小组件：随启动恢复，经设置页「小组件」管理
         self._widget_mgr = None
         try:
             from app.ui.widget_manager import WidgetManager
@@ -324,7 +325,6 @@ class MainWindow(QMainWindow):
 
     def _on_theme_changed(self, theme: str) -> None:
         """主题切换广播：重建可重建结构并刷新固定件。"""
-        self._close_quick_popup()
         self._reapply_chrome_styles()
         self._rebuild_tabs()
         self._rebuild_grid()
@@ -618,7 +618,9 @@ class MainWindow(QMainWindow):
                 self._widget_mgr.sync_device_meta(devices)
             except Exception:
                 pass
-        # 产品图异步就绪后回填（缓存命中则立即生效）
+        # 产品图异步就绪后回填（缓存命中则立即生效）；设备列表刷新
+        # 视为用户主动重试：清掉本会话失败记录，让缺失型号再试一次
+        self._icon_failed.clear()
         QTimer.singleShot(300, self._prime_card_icons)
 
     def _maybe_localize_names(self) -> None:
@@ -756,37 +758,6 @@ class MainWindow(QMainWindow):
         dlg.exec()
         dlg.deleteLater()
 
-    # ---------- 卡片快捷操作弹层 ----------
-
-    def _close_quick_popup(self) -> None:
-        """收起快捷弹层（网格重建/主题切换/窗口隐藏前调用）。"""
-        popup = self._quick_popup
-        self._quick_popup = None
-        if popup is not None and shiboken6.isValid(popup):
-            try:
-                popup.close()
-                popup.deleteLater()
-            except Exception:
-                pass
-
-    def _on_quick_requested(self, did: str) -> None:
-        """卡片「快捷操作」按钮：呼出锚定在该按钮下方的调节弹层。"""
-        if self._quick_popup is not None and shiboken6.isValid(self._quick_popup):
-            self._quick_popup.close()
-        card = self._cards.get(did)
-        if card is None or not card.device.online:
-            return
-        from app.ui.quick_ops import QuickOpsPopup
-        popup = QuickOpsPopup(self._service, self._jobs, card.device, self)
-        popup.destroyed.connect(self._on_quick_popup_destroyed)
-        self._quick_popup = popup
-        btn = card.quick_btn
-        popup.popup_near(btn.mapToGlobal(btn.rect().bottomRight()))
-
-    def _on_quick_popup_destroyed(self) -> None:
-        if self._quick_popup is not None and not shiboken6.isValid(self._quick_popup):
-            self._quick_popup = None
-
     def show_settings(self) -> None:
         """打开设置对话框（托盘菜单与主界面菜单共用入口）。"""
         # 弹出期间置顶已有实例，避免托盘与主界面重复弹出
@@ -836,6 +807,9 @@ class MainWindow(QMainWindow):
             self._show_icons = new_icons
             if not new_icons:
                 self._card_pix.clear()
+            else:
+                # 从关再开：清掉会话内失败记录，允许重新拉取产品图
+                self._icon_failed.clear()
             changed_view = True
         new_w = get_card_width()
         if new_w != self._card_w:
@@ -843,10 +817,10 @@ class MainWindow(QMainWindow):
             changed_view = True
         if changed_view:
             self._rebuild_grid()
-            if self._show_icons and not self._icon_primed:
+            if self._show_icons:
+                # 重建后统一走拉取入口：命中磁盘/内存立即回填，
+                # 缺失的型号异步补齐（可重复触发，不再一次性永久跳过）
                 QTimer.singleShot(300, self._prime_card_icons)
-            else:
-                self._reapply_cached_icons()
         # 同步小爱悬浮按钮显隐
         self._update_voice_fab()
 
@@ -1135,8 +1109,6 @@ class MainWindow(QMainWindow):
             self._grid_columns = 0
             return
         self._grid_dirty = False
-        # 网格重建会销毁现有卡片：锚定其上的快捷弹层一并收起
-        self._close_quick_popup()
         for card in self._cards.values():
             card.deleteLater()
         self._cards.clear()
@@ -1161,7 +1133,6 @@ class MainWindow(QMainWindow):
             if device.did in self._metrics:
                 card.set_metrics(self._metrics.get(device.did))
             card.power_clicked.connect(self._on_power_clicked)
-            card.quick_requested.connect(self._on_quick_requested)
             card.open_requested.connect(self._on_open_device)
             self._cards[device.did] = card
             self._grid.addWidget(card, index // cols, index % cols)
@@ -1318,14 +1289,17 @@ class MainWindow(QMainWindow):
     # ---------- 产品图 ----------
 
     def _prime_card_icons(self) -> None:
-        """为可见设备拉产品图：磁盘命中立即注入，否则后台取一次。"""
+        """为可见设备拉产品图：磁盘命中立即注入，否则后台取一次。
+
+        设备刷新、产品图重开、卡片宽度改动后都会走到这里；已就绪的
+        型号直接跳过，未拉取过的才排队请求。中途关过产品图（内存缓存
+        被清空）再重新开启时也能自动补齐，不再因「只拉一次」的标记而
+        永久缺失（曾表现为改完卡片宽度后产品图消失、刷新也不回来）。
+        """
         from app.core import icons as icon_cache
 
-        if not self._show_icons:
+        if not self._show_icons or self._icon_fetching:
             return
-        if self._icon_primed:
-            return
-        self._icon_primed = True
         models: list[str] = []
         seen: set[str] = set()
         for dev in self._all_devices:
@@ -1340,23 +1314,30 @@ class MainWindow(QMainWindow):
                 if pix is not None:
                     self._card_pix[model] = pix
                     self._apply_card_icon(model, pix)
-            if model not in self._card_pix and model not in self._icon_pending:
+            if model not in self._card_pix and model not in self._icon_pending \
+                    and model not in self._icon_failed:
                 self._icon_pending.add(model)
                 todo.append(model)
-        if todo:
-            self._jobs.submit(
-                lambda todo=todo: {
-                    m: self._service.fetch_product_icon(m) for m in todo},
-                on_success=self._on_card_icons_fetched,
-                on_error=lambda e: self._icon_pending.clear(),
-            )
+        if not todo:
+            return
+        self._icon_todo = list(todo)
+        self._icon_fetching = True
+        self._jobs.submit(
+            lambda todo=todo: {
+                m: self._service.fetch_product_icon(m) for m in todo},
+            on_success=self._on_card_icons_fetched,
+            on_error=self._on_card_icons_failed,
+        )
 
     def _on_card_icons_fetched(self, mapping: dict) -> None:
         from app.core import icons as icon_cache
 
+        self._icon_fetching = False
         for model, data in (mapping or {}).items():
             self._icon_pending.discard(model)
             if not data:
+                # 该型号确认无产品图：本轮不再重试
+                self._icon_failed.add(model)
                 continue
             if icon_cache.save_bytes(model, data):
                 pix = icon_cache.load_pixmap(model, 40)
@@ -1364,19 +1345,19 @@ class MainWindow(QMainWindow):
                     self._card_pix[model] = pix
                     self._apply_card_icon(model, pix)
 
+    def _on_card_icons_failed(self, error: Exception) -> None:
+        self._icon_fetching = False
+        todo = list(getattr(self, "_icon_todo", ()) or ())
+        self._icon_failed.update(todo)
+        self._icon_pending.clear()
+        logger.warning("拉取产品图失败: %s", error)
+
     def _apply_card_icon(self, model: str, pixmap) -> None:
         if not self._show_icons:
             return
         for card in self._cards.values():
             if card.device.model == model:
                 card.set_icon(pixmap)
-
-    def _reapply_cached_icons(self) -> None:
-        if not self._show_icons:
-            return
-        for model, pix in self._card_pix.items():
-            if pix is not None:
-                self._apply_card_icon(model, pix)
 
     # ---------- 详情 ----------
 
@@ -1412,7 +1393,6 @@ class MainWindow(QMainWindow):
                 self._tray.set_tray_visible(True)
             except Exception:
                 pass
-            self._close_quick_popup()
             event.ignore()
             self.hide()
             # 常驻托盘态把物理页交还系统，任务管理器占用显著下降

@@ -38,7 +38,7 @@ _THEME_MODE_LABELS = {"system": "跟随系统", "light": "浅色模式", "dark":
 _THEME_LABEL_TO_MODE = {v: k for k, v in _THEME_MODE_LABELS.items()}
 
 _TAB_APPEARANCE, _TAB_TRAY, _TAB_FEATURES, _TAB_WIDGETS = 0, 1, 2, 3
-_TAB_TITLES = ("主题界面", "托盘设置", "应用功能", "桌面小组件")
+_TAB_TITLES = ("主题界面", "托盘设置", "应用功能", "小组件")
 # 切页淡入时长：与主页房间切换同款
 _FADE_MS = 160
 
@@ -336,9 +336,28 @@ class SettingsDialog(OverlayDialog):
             current=dict(self._pos_options)[settings_store.get_tray_position()])
         pos_row.addWidget(self._pos_combo)
 
+        # ── 托盘图标颜色 ──
+        self._color_item, self._color_label, self._color_desc, color_row = \
+            self._make_item(
+                "托盘图标颜色",
+                "系统托盘常驻图标配色：白色为默认，可选黑色或米家品牌绿；"
+                "切换后立即刷新")
+        self._icon_color_options: list[tuple[str, str]] = [
+            (settings_store.TRAY_ICON_WHITE, "白色（默认）"),
+            (settings_store.TRAY_ICON_BLACK, "黑色"),
+            (settings_store.TRAY_ICON_GREEN, "品牌绿"),
+        ]
+        self._color_combo = themed_combo(
+            [label for _, label in self._icon_color_options],
+            current=dict(self._icon_color_options)[
+                settings_store.get_tray_icon_color()])
+        self._color_combo.currentTextChanged.connect(
+            self._on_tray_icon_color_changed)
+        color_row.addWidget(self._color_combo)
+
         return self._build_scroll([
             self._tray_item, self._start_min_item,
-            self._always_item, self._pos_item,
+            self._always_item, self._pos_item, self._color_item,
         ])
 
     def _build_features_page(self) -> QScrollArea:
@@ -461,10 +480,10 @@ class SettingsDialog(OverlayDialog):
         anim.finished.connect(_cleanup)
         anim.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
 
-    # ---------- 桌面小组件 ----------
+    # ---------- 小组件 ----------
 
     def _build_widget_page(self) -> QScrollArea:
-        """桌面小组件：添加/移除、缩放(1%步进)、锁定/置顶、背景透明度。"""
+        """小组件：添加/移除、缩放(1%步进)、锁定/置顶、背景透明度。"""
         host = QWidget()
         host.setStyleSheet("background: transparent;")
         body = QVBoxLayout(host)
@@ -472,7 +491,7 @@ class SettingsDialog(OverlayDialog):
         body.setSpacing(8)
 
         head = QHBoxLayout()
-        title = QLabel("桌面小组件")
+        title = QLabel("小组件")
         title.setStyleSheet(
             f"color: {SiColors.TEXT_PRIMARY}; background: transparent; font-size: 11pt;")
         head.addWidget(title)
@@ -485,9 +504,10 @@ class SettingsDialog(OverlayDialog):
         body.addLayout(head)
 
         desc = QLabel(
-            "把单个或多个设备固定为桌面小组件：顶部手柄拖动摆放（解锁后），"
-            "点击 −/+ 以 1% 步进缩放；「锁定」后不可误拖，需回到本页解锁；"
-            "「置顶」让小组件浮在其他窗口之上；「背景透明」调节卡片透出桌面程度。")
+            "把单个或多个设备固定为小组件（只显示设备控件、无标题栏）："
+            "解锁后按住卡片空白处即可拖动摆放，点击 −/+ 以 1% 步进缩放；"
+            "「锁定」后不可误拖，需回到本页解锁；「置顶」让小组件浮在其他"
+            "窗口之上；「背景透明」调节卡片透出桌面程度。")
         desc.setWordWrap(True)
         desc.setStyleSheet(
             f"color: {SiColors.TEXT_SECONDARY}; background: transparent; font-size: 8pt;")
@@ -606,7 +626,7 @@ class SettingsDialog(OverlayDialog):
         title_edit = QLineEdit(cfg.get("title") or "")
         title_edit.setPlaceholderText(
             f"默认：{self._widget_devices_text(cfg)}")
-        title_edit.setToolTip("小组件显示名称；留空 = 默认用设备名称")
+        title_edit.setToolTip("小组件名称（仅作设置页标识；桌面不显示标题栏，留空 = 自动命名）")
         title_edit.setFixedHeight(28)
         title_edit.setStyleSheet(
             f"QLineEdit {{ background: {SiColors.SURFACE}; border: 1px solid {SiColors.LINE};"
@@ -675,7 +695,7 @@ class SettingsDialog(OverlayDialog):
         opt_row.addStretch(1)
         locked_btn = self._widget_row_btn(
             "🔓 解锁移动" if cfg["locked"] else "🔒 锁定", active=cfg["locked"])
-        locked_btn.setToolTip("解锁后可用小组件顶部手柄拖动位置")
+        locked_btn.setToolTip("解锁后按住小组件空白处即可拖动位置")
         locked_btn.clicked.connect(
             lambda _, w=wid, l=cfg["locked"]: self._widget_update(
                 w, "locked", not l))
@@ -767,10 +787,10 @@ class SettingsDialog(OverlayDialog):
         """主题相关内联样式：构造与 retheme 共用。"""
         panel_card = f"QFrame {{ background: {SiColors.CARD}; border-radius: 10px; }}"
         for item in (self._tray_item, self._start_min_item, self._always_item,
-                     self._pos_item, self._fab_item, self._theme_item,
-                     self._autostart_item, self._speaker_item,
-                     self._hide_item, self._scale_item, self._update_item,
-                     self._icons_item, self._width_item):
+                     self._pos_item, self._color_item, self._fab_item,
+                     self._theme_item, self._autostart_item,
+                     self._speaker_item, self._hide_item, self._scale_item,
+                     self._update_item, self._icons_item, self._width_item):
             item.setStyleSheet(panel_card)
             # 高度按内容自适应（不固定）：长描述换行后行自然变高，
             # 不会被固定 64px 裁掉；短描述保持紧凑。QScrollArea 负责
@@ -779,18 +799,20 @@ class SettingsDialog(OverlayDialog):
         self._title_label.setStyleSheet(
             f"color: {SiColors.TEXT_PRIMARY}; background: transparent;")
         for label in (self._tray_label, self._start_min_label,
-                      self._always_label, self._pos_label, self._fab_label,
-                      self._theme_label, self._autostart_label,
-                      self._speaker_label, self._hide_label, self._scale_label,
+                      self._always_label, self._pos_label, self._color_label,
+                      self._fab_label, self._theme_label,
+                      self._autostart_label, self._speaker_label,
+                      self._hide_label, self._scale_label,
                       self._update_label, self._icons_label,
                       self._width_label):
             label.setStyleSheet(
                 f"color: {SiColors.TEXT_PRIMARY}; background: transparent; font-size: 10pt;")
         for desc in (self._tray_desc, self._start_min_desc,
-                     self._always_desc, self._pos_desc, self._fab_desc,
-                     self._theme_desc, self._autostart_desc,
-                     self._speaker_desc, self._hide_desc, self._scale_desc,
-                     self._update_desc, self._icons_desc, self._width_desc):
+                     self._always_desc, self._pos_desc, self._color_desc,
+                     self._fab_desc, self._theme_desc,
+                     self._autostart_desc, self._speaker_desc,
+                     self._hide_desc, self._scale_desc, self._update_desc,
+                     self._icons_desc, self._width_desc):
             desc.setStyleSheet(
                 f"color: {SiColors.TEXT_SECONDARY}; background: transparent; font-size: 7pt;")
         self._done_btn.setStyleSheet(
@@ -805,6 +827,9 @@ class SettingsDialog(OverlayDialog):
         # 托盘弹出位置下拉随主题刷新
         apply_combo_qss(self._pos_combo)
         self._pos_combo.set_arrow_color(SiColors.TEXT_SECONDARY)
+        # 托盘图标颜色下拉随主题刷新
+        apply_combo_qss(self._color_combo)
+        self._color_combo.set_arrow_color(SiColors.TEXT_SECONDARY)
         # 主卡片宽度下拉随主题刷新
         apply_combo_qss(self._width_combo)
         self._width_combo.set_arrow_color(SiColors.TEXT_SECONDARY)
@@ -903,6 +928,21 @@ class SettingsDialog(OverlayDialog):
         combo.setCurrentText(self._scale_pct_text(value))
         combo.blockSignals(False)
 
+    def _on_tray_icon_color_changed(self, text: str) -> None:
+        """托盘图标颜色下拉即改即生效（与主题下拉同款即时预览）。"""
+        value = next(
+            (k for k, label in self._icon_color_options if label == text),
+            None)
+        if value is None:
+            return
+        win = self.parent()
+        tray = getattr(win, "_tray", None)
+        if tray is not None:
+            try:
+                tray.apply_icon_color(value)
+            except Exception:
+                pass
+
     def _save_and_accept(self) -> None:
         settings_store.set_minimize_to_tray(self._tray_toggle.isChecked())
         # 子开关仅在父开关开启时有效，关闭时强制写入 False
@@ -916,6 +956,11 @@ class SettingsDialog(OverlayDialog):
         pos_idx = self._pos_combo.currentIndex()
         if 0 <= pos_idx < len(self._pos_options):
             settings_store.set_tray_position(self._pos_options[pos_idx][0])
+        # 托盘图标颜色
+        color_idx = self._color_combo.currentIndex()
+        if 0 <= color_idx < len(self._icon_color_options):
+            settings_store.set_tray_icon_color(
+                self._icon_color_options[color_idx][0])
         # 默认输出音箱：下拉文案反查 did；无音箱时被灰置为「自动」存空串
         idx = self._speaker_combo.currentIndex()
         if 0 <= idx < len(self._speaker_options):

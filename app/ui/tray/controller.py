@@ -7,10 +7,18 @@ from PySide6.QtCore import QSize
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
+from app.core import settings_store
 from app.core.jobs import JobExecutor
 from app.core.models import DeviceInfo
 from app.core.service import MijiaService
 from app.ui.tray.quick_window import TrayQuickWindow
+
+# 托盘图标配色 -> 资源文件（白=默认；黑/绿 为变体；三者图形同源）
+_TRAY_ICON_FILES = {
+    settings_store.TRAY_ICON_WHITE: "app/ui/tray_icon.png",
+    settings_store.TRAY_ICON_BLACK: "app/ui/tray_icon_light.png",
+    settings_store.TRAY_ICON_GREEN: "app/ui/tray_icon_green.png",
+}
 
 
 class TrayController:
@@ -24,14 +32,7 @@ class TrayController:
         # 快捷窗口设为独立顶层窗口，不随主窗口模态对话框被阻塞
         self._create_quick_window()
 
-        # 使用自定义 tray_icon.png 作为托盘图标，提供多尺寸确保清晰
-        from app import resource_path
-        _icon_path = str(resource_path("app/ui/tray_icon.png"))
-        _tray_icon = QIcon(_icon_path)
-        _tray_icon.addFile(_icon_path, QSize(16, 16))
-        _tray_icon.addFile(_icon_path, QSize(32, 32))
-        _tray_icon.addFile(_icon_path, QSize(48, 48))
-        self._tray = QSystemTrayIcon(_tray_icon, main_window)
+        self._tray = QSystemTrayIcon(main_window)
         self._tray.setToolTip("米家 - MiHome for Windows")
         self._tray.activated.connect(self._on_activated)
 
@@ -57,26 +58,20 @@ class TrayController:
 
         # 托盘图标常驻，无需可用性检查也尝试显示
         self._tray.show()
-        # 托盘图标跟系统配色（任务栏底色由系统决定），与应用主题设置无关
-        from PySide6.QtGui import QGuiApplication
-        self.apply_system_icon_theme(
-            QGuiApplication.styleHints().colorScheme())
+        # 按设置里选择的图标颜色渲染（默认白色）
+        self.apply_icon_color(None)
 
-    def apply_system_icon_theme(self, scheme) -> None:
-        """按系统配色切换托盘图标：浅色任务栏用深色图形，反之亦然。
+    def apply_icon_color(self, color: str | None) -> None:
+        """按设置切换托盘图标颜色并立即刷新。
 
-        scheme 接受 Qt.ColorScheme 或 \"dark\"/\"light\" 字符串。
+        color 缺省时读取设置；white=白色（默认）/ black=黑色 /
+        green=品牌绿。托盘图标配色是用户偏好，与系统任务栏明暗无关，
+        设置页切换时实时调用本方法即可即时生效。
         """
-        from PySide6.QtCore import Qt
-
-        if isinstance(scheme, str):
-            is_light = scheme == "light"
-        else:
-            is_light = scheme == Qt.ColorScheme.Light
-        if is_light:
-            icon_file = "app/ui/tray_icon_light.png"
-        else:
-            icon_file = "app/ui/tray_icon.png"
+        if color not in _TRAY_ICON_FILES:
+            color = settings_store.get_tray_icon_color()
+        icon_file = _TRAY_ICON_FILES.get(color) or _TRAY_ICON_FILES[
+            settings_store.TRAY_ICON_WHITE]
         from app import resource_path
         path = str(resource_path(icon_file))
         icon = QIcon(path)
@@ -84,6 +79,14 @@ class TrayController:
         icon.addFile(path, QSize(32, 32))
         icon.addFile(path, QSize(48, 48))
         self._tray.setIcon(icon)
+
+    def apply_system_icon_theme(self, scheme) -> None:
+        """兼容入口：系统深浅色变化不再自动改图标，尊重用户配色设置。
+
+        早期托盘图标跟随任务栏底色（浅任务栏用深色图形），引入
+        「托盘图标颜色」设置后以显式选择为准，避免系统信号覆盖用户偏好。
+        """
+        self.apply_icon_color(None)
 
     def _create_quick_window(self) -> None:
         """创建快捷窗口并接线；主题切换时整窗重建复用。"""

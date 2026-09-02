@@ -220,6 +220,63 @@ assert dlg._guard.enabled
 assert not dlg._scroll.isVisibleTo(dlg), "安全模式应隐藏场景列表"
 print("6. 场景对话框安全模式分支 OK")
 
+# ---------- 7. 桌面小组件（无标题栏/无 did 数字/开关回填/锁定提示） ----------
+from app.ui.desktop_widget import DesktopWidget
+from app.ui.power_button import PowerButton
+from app.ui.toast import Toast
+from PySide6.QtWidgets import QLabel as _QLabel
+
+
+class _WidgetMgr:
+    def devices_lookup(self):
+        return {}
+
+    def move_done(self, *args):
+        pass
+
+    def broadcast_power(self, *args):
+        pass
+
+
+class _WidgetSvc(_FakeService):
+    def power_states(self, dids):
+        return {d: True for d in dids}
+
+    def toggle_power(self, did):
+        return False
+
+
+_wcfg = {"id": "w1", "dids": ["942167279"],
+         "devices": {"942167279": {"name": "台灯2", "room": "卧室",
+                                   "online": True}},
+         "scale": 100, "locked": True, "topmost": True, "bg_alpha": 90,
+         "device_ops": {"942167279": []}, "x": 10, "y": 10}
+_win = DesktopWidget(_WidgetMgr(), _WidgetSvc(), _FakeJobs(), _wcfg)
+app.processEvents()
+assert not hasattr(_win, "_handle"), "顶部标题栏手柄应已移除"
+texts = [l.text() for l in _win._content.findChildren(_QLabel)]
+assert not any("942167279" in t for t in texts), f"控件里残留 did 数字: {texts}"
+assert "942167279" in _win._power_btns
+_pbtn = _win._power_btns["942167279"]
+assert _pbtn.width() >= 36, f"开关圆钮未放大到 36: {_pbtn.width()}"
+# 初始未知 -> 回读后应显示真实开状态（1.1 回归：开着却显示关）
+assert _pbtn.state() is None
+_win._refresh_power_states()
+app.processEvents()
+assert _pbtn.state() is True, f"回读后开关状态未更新: {_pbtn.state()}"
+# 锁定提示两行且钳制在小组件宽度内（1.2 回归：超出边框显示不全）
+Toast.lock_hint(_win)
+app.processEvents()
+_hint = Toast._current
+assert _hint is not None and _hint.width() <= _win.width(), \
+    f"锁定提示超出小组件宽度: {_hint.width()} > {_win.width()}"
+if _hint is not None:
+    _hint.deleteLater()
+app.processEvents()
+_win.apply_config({**_wcfg, "locked": False})  # 解锁不应崩
+_win.close()
+print("7. 桌面小组件：无标题栏/无 did/开关回填/提示适配 OK")
+
 popup.close()
 panel.deleteLater()
 print("FEATURE SMOKE PASS")

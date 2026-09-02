@@ -1,17 +1,18 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # MiHome-Windows: 米家设备的 Windows 桌面控制端
 # Copyright (C) 2026 MiHome-Windows contributors
-"""桌面小组件窗口：多设备常驻桌面，托盘同款内容 + 圆角卡片。
+"""桌面小组件窗口：多设备常驻桌面，仅显示设备控件，无标题栏。
 
 实现要点：
 - 顶层无边框 Tool 窗口（不占任务栏/Alt+Tab），WA_TranslucentBackground；
 - 内容经 QGraphicsProxyWidget 承载 scale/100 倍缩放（1% 步进调节），
   调节行加载完成后自动按内容收放高度（默认展示完整，不留空白）；
-- 四角圆角（卡片自身圆角 + 外透明边距裁出圆角）；
-- 「背景透明度」只作用白色卡片底色（rgba 背景），可点击控件与边框
-  保持不透明（QuickOps 行/SURFACE 均为实底）；标题与文字不受影响；
-- 顶部细手柄未锁定时拖拽移动；右下角「↘」手柄拖动 = 连续调缩放/长度；
-- 标题默认取设备名（单台）或设备名连读（多台），可在设置页自定义。
+- 不再显示顶部标题/手柄条，内容直接以每台设备的控件行开始；
+  未锁定时按住卡片空白处（非按钮/滑块的区域）即可拖动摆放，
+  锁定时点击空白区弹两行提示（去设置页解锁）；
+- 「背景透明度」只作用卡片底色与外围边框（rgba），控件保持不透明；
+- 开关状态：构建/显示后与每 6s 轮询批量回读真实开关状态并回填，
+  点击开关后同时更新本窗与同设备其他小组件，避免出现「开着却显示关」。
 """
 
 from PySide6.QtCore import QEvent, QPoint, Qt, QTimer
@@ -32,9 +33,12 @@ from app.core.service import MijiaService
 from app.ui.power_button import PowerButton
 from app.ui.quick_ops import QuickOpsPopup
 from app.ui.si_theme import SiColors
+from app.ui.toast import Toast
 
 _DESIGN_W = 268
-_HANDLE_H = 24
+# 开关圆钮与主界面电源钮同尺寸，避免与下方调节行高度差过大
+_POWER_BTN_SIZE = 36
+_POWER_POLL_MS = 6000
 
 
 def _hex_rgba(hex_color: str, alpha: int) -> str:
@@ -47,78 +51,6 @@ def _hex_rgba(hex_color: str, alpha: int) -> str:
     return f"rgba({r},{g},{b},{a:g})"
 
 
-def _auto_title(cfg: dict) -> str:
-    custom = str(cfg.get("title") or "").strip()
-    if custom:
-        return custom
-    meta = cfg.get("devices") or {}
-    names = []
-    for did in cfg.get("dids", []):
-        m = meta.get(did) or {}
-        names.append(m.get("name") or did)
-    if not names:
-        return "米家小组件"
-    if len(names) == 1:
-        return names[0]
-    return "、".join(names[:3]) + (f" 等{len(names)}台" if len(names) > 3 else "")
-
-
-class _HandleBar(QFrame):
-    """顶部手柄：未锁定时整条可拖动窗口；左侧标题可自定义。"""
-
-    def __init__(self, owner: "DesktopWidget", locked: bool, title: str):
-        super().__init__()
-        self._owner = owner
-        self._press = None
-        self.setObjectName("widgetHandle")
-        self.setFixedHeight(_HANDLE_H)
-        self.setCursor(Qt.CursorShape.OpenHandCursor if not locked
-                       else Qt.CursorShape.ArrowCursor)
-        lay = QHBoxLayout(self)
-        lay.setContentsMargins(10, 0, 6, 0)
-        lay.setSpacing(6)
-        mark = QLabel("◈")
-        mark.setStyleSheet(f"color: {SiColors.THEME}; background: transparent;")
-        lay.addWidget(mark)
-        self.title_lab = QLabel(title)
-        self.title_lab.setFont(
-            QFont("Microsoft YaHei UI", 9, QFont.Weight.DemiBold))
-        self.title_lab.setStyleSheet(
-            f"color: {SiColors.TEXT_PRIMARY}; background: transparent;")
-        lay.addWidget(self.title_lab)
-        lay.addStretch(1)
-        self.installEventFilter(self)
-
-    def set_title(self, title: str) -> None:
-        self.title_lab.setText(title)
-
-    def eventFilter(self, obj, event) -> bool:  # noqa: N802
-        et = event.type()
-        if self._owner._cfg.get("locked", True):
-            # 锁定时点击手柄不移动，明确提示去设置解锁
-            if et == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
-                from app.ui.toast import Toast
-                Toast.info(self._owner,
-                           "小组件已锁定位置：请在「设置 → 桌面小组件」解锁后移动",
-                           2200)
-                return True
-            return super().eventFilter(obj, event)
-        if et == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
-            self._press = (event.globalPosition().toPoint()
-                           - self._owner.frameGeometry().topLeft())
-            return True
-        if et == QEvent.MouseMove and self._press is not None \
-                and event.buttons() & Qt.LeftButton:
-            self._owner.move(event.globalPosition().toPoint() - self._press)
-            return True
-        if et == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
-            if self._press is not None:
-                self._press = None
-                self._owner._notify_moved()
-            return True
-        return super().eventFilter(obj, event)
-
-
 class DesktopWidget(QWidget):
     def __init__(self, manager, service: MijiaService, jobs: JobExecutor,
                  cfg: dict):
@@ -128,8 +60,13 @@ class DesktopWidget(QWidget):
         self._jobs = jobs
         self._cfg = dict(cfg)
         self._devices_meta = dict(cfg.get("devices") or {})
-        self._handle: _HandleBar | None = None
         self._card: QWidget | None = None
+        # did -> 电源钮（就地刷新状态用）；did -> 最近一次已知开关状态
+        self._power_btns: dict[str, PowerButton] = {}
+        self._power_known: dict[str, bool | None] = {}
+        # 未锁定时按住空白拖动；None = 未在拖动
+        self._drag_offset: QPoint | None = None
+        self._press_pos: QPoint | None = None
 
         flags = Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool
         if cfg.get("topmost", True):
@@ -147,10 +84,26 @@ class DesktopWidget(QWidget):
         self._view.setStyleSheet("background: transparent; border: none;")
         root.addWidget(self._view)
 
+        # 显示期间轮询真实开关状态（小组件独立于主窗口轮询）
+        self._power_timer = QTimer(self)
+        self._power_timer.setInterval(_POWER_POLL_MS)
+        self._power_timer.timeout.connect(self._refresh_power_states)
+
         self._proxy: QGraphicsProxyWidget | None = None
         self._content: QWidget | None = None
         self._rebuild_content()
         self.apply_config(self._cfg)
+
+    # ---------- 窗口显隐与轮询 ----------
+
+    def showEvent(self, event) -> None:  # noqa: N802 (Qt 命名约定)
+        super().showEvent(event)
+        self._power_timer.start()
+        QTimer.singleShot(120, self._refresh_power_states)
+
+    def hideEvent(self, event) -> None:  # noqa: N802 (Qt 命名约定)
+        self._power_timer.stop()
+        super().hideEvent(event)
 
     # ---------- 构建内容 ----------
 
@@ -160,6 +113,7 @@ class DesktopWidget(QWidget):
             self._content.deleteLater()
             self._content = None
             self._proxy = None
+        self._power_btns.clear()
         outer = QWidget()
         outer.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         outer.setFixedWidth(_DESIGN_W + 16)
@@ -175,9 +129,6 @@ class DesktopWidget(QWidget):
         lay = QVBoxLayout(card)
         lay.setContentsMargins(2, 2, 2, 0)
         lay.setSpacing(2)
-        self._handle = _HandleBar(
-            self, self._cfg.get("locked", True), _auto_title(self._cfg))
-        lay.addWidget(self._handle)
 
         devices = (self._manager.devices_lookup()
                    if hasattr(self._manager, "devices_lookup") else {})
@@ -187,7 +138,12 @@ class DesktopWidget(QWidget):
                 lay.addWidget(block)
 
         self._paint_bg()
+        self._apply_drag_cursor()
         self._proxy = self._scene.addWidget(outer)
+        # 卡片本体与内容树最外层都接收未被控件消费的鼠标事件：
+        # 空白处拖动 / 锁定时点击弹两行提示（事件先在 card 停下）
+        self._card.installEventFilter(self)
+        outer.installEventFilter(self)
         QTimer.singleShot(0, self._refit)
 
     def _paint_bg(self) -> None:
@@ -233,14 +189,19 @@ class DesktopWidget(QWidget):
             f"color: {SiColors.TEXT_PRIMARY if online else SiColors.OFFLINE_TEXT};"
             " background: transparent;")
         head.addWidget(name_lab, 1)
-        btn = PowerButton(26, icon_size=20)
+        btn = PowerButton(_POWER_BTN_SIZE, icon_size=24)
         btn.set_online(online)
+        # 重建/回填时立即用最近已知状态（未确认前保持未知态）
+        known = self._power_known.get(did)
+        if known is not None:
+            btn.set_state(known)
+        self._power_btns[did] = btn
 
         def _toggle(checked=False, d=did, b=btn):
             b.set_busy(True)
             self._jobs.submit(
                 lambda: self._service.toggle_power(d),
-                on_success=lambda ns, bb=b: bb.set_state(ns),
+                on_success=lambda ns, bb=b: self._on_toggle_done(d, ns, bb),
                 on_error=lambda e, bb=b: bb.set_busy(False),
             )
         btn.clicked.connect(_toggle)
@@ -254,8 +215,9 @@ class DesktopWidget(QWidget):
                               self._fake_device(dev, did),
                               parent=host, inline=True, show_header=False,
                               op_names=op_names)
-        # 调节项异步长出后按内容收放窗口高度
+        # 调节项异步长出后按内容收放窗口高度；无可用项收起后同样校正
         popup.loaded.connect(lambda: QTimer.singleShot(0, self._refit))
+        popup.empty.connect(lambda: QTimer.singleShot(0, self._refit))
         lay.addWidget(popup)
         return host
 
@@ -267,6 +229,110 @@ class DesktopWidget(QWidget):
         return DeviceInfo(did=did, name=did, model="",
                           home_name="", room_name="", online=True)
 
+    # ---------- 开关状态：回读 / 轮询 / 同步 ----------
+
+    def _refresh_power_states(self) -> None:
+        """批量回读本窗各设备开关状态并就地刷新（不重建，杜绝闪烁）。"""
+        dids: list[str] = []
+        meta = self._cfg.get("devices") or {}
+        for did, btn in self._power_btns.items():
+            if not btn.isEnabled():
+                continue  # 离线设备不读（云端缓存值不可信）
+            if bool((meta.get(did) or {}).get("online", True)):
+                dids.append(did)
+        if not dids:
+            return
+        self._jobs.submit(
+            lambda: self._service.power_states(dids),
+            on_success=self._apply_power_states,
+            on_error=lambda _: None,
+        )
+
+    def _apply_power_states(self, states: dict) -> None:
+        for did, state in (states or {}).items():
+            self._apply_power_state(did, state)
+
+    def _apply_power_state(self, did: str, state: bool | None) -> None:
+        if state is None:
+            return
+        self._power_known[did] = state
+        btn = self._power_btns.get(did)
+        if btn is not None:
+            btn.set_state(state)
+
+    def _on_toggle_done(self, did: str, state: bool, btn) -> None:
+        """本窗点击开关成功：回填状态并同步到含同设备的其它小组件。"""
+        self._power_known[did] = state
+        btn.set_state(state)
+        btn.set_busy(False)
+        manager = getattr(self, "_manager", None)
+        if manager is not None and hasattr(manager, "broadcast_power"):
+            try:
+                manager.broadcast_power(did, state)
+            except Exception:
+                pass
+
+    def apply_external_power(self, did: str, state: bool | None) -> None:
+        """其它入口（本窗另一实例/主窗口）改开关后由 Manager 推送过来。"""
+        if state is None:
+            return
+        self._power_known[did] = state
+        btn = self._power_btns.get(did)
+        if btn is not None:
+            btn.set_state(state)
+
+    # ---------- 空白拖动 / 锁定提示 ----------
+
+    def _apply_drag_cursor(self) -> None:
+        cursor = (Qt.CursorShape.OpenHandCursor
+                  if not self._cfg.get("locked", True)
+                  else Qt.CursorShape.ArrowCursor)
+        if self._card is not None:
+            self._card.setCursor(cursor)
+
+    def eventFilter(self, obj, event) -> bool:  # noqa: N802
+        """内容树最外层：未被控件消费的鼠标事件 → 拖动 / 锁定提示。
+
+        按钮/滑块等会自行消费鼠标事件，走到这里的都是空白区域；
+        锁定时按下给两行提示并吞掉事件，解锁时按下开始拖动。
+        """
+        if obj not in (self._content, self._card):
+            return super().eventFilter(obj, event)
+        et = event.type()
+        locked = self._cfg.get("locked", True)
+        if et == QEvent.Type.MouseButtonPress \
+                and event.button() == Qt.MouseButton.LeftButton:
+            if locked:
+                Toast.lock_hint(self)
+                return True
+            # 先记录按下点；超过小阈值才真正进入拖动，避免误触挪动
+            self._press_pos = event.globalPosition().toPoint()
+            self._drag_offset = None
+            return True
+        if et == QEvent.Type.MouseMove and self._press_pos is not None \
+                and event.buttons() & Qt.MouseButton.LeftButton:
+            pos = event.globalPosition().toPoint()
+            if self._drag_offset is None:
+                origin = self.frameGeometry().topLeft()
+                if (pos - self._press_pos).manhattanLength() < 4:
+                    return True
+                self._drag_offset = self._press_pos - origin
+            self.move(pos - self._drag_offset)
+            return True
+        if et == QEvent.Type.MouseButtonRelease \
+                and event.button() == Qt.MouseButton.LeftButton \
+                and self._drag_offset is not None:
+            self._drag_offset = None
+            self._press_pos = None
+            self._notify_moved()
+            return True
+        if et == QEvent.Type.MouseButtonRelease \
+                and event.button() == Qt.MouseButton.LeftButton:
+            # 纯点击（未形成拖动）：复位按下记录即可
+            self._press_pos = None
+            return False
+        return super().eventFilter(obj, event)
+
     # ---------- 配置应用 ----------
 
     def _content_sig(self, cfg: dict) -> tuple:
@@ -276,9 +342,9 @@ class DesktopWidget(QWidget):
                 tuple(sorted((cfg.get("device_ops") or {}).items())))
 
     def apply_config(self, cfg: dict) -> None:
-        old_title = _auto_title(self._cfg)
         old_sig = self._content_sig(self._cfg)
         changed_scale = (cfg.get("scale") != self._cfg.get("scale"))
+        lock_changed = (cfg.get("locked", True) != self._cfg.get("locked", True))
         self._cfg = dict(cfg)
         self._devices_meta = dict(cfg.get("devices") or {})
         topmost = bool(cfg.get("topmost", True))
@@ -294,10 +360,10 @@ class DesktopWidget(QWidget):
             self._rebuild_content()
         if changed_scale:
             self._refit()
-        if self._handle is not None:
-            new_title = _auto_title(self._cfg)
-            if new_title != old_title:
-                self._handle.set_title(new_title)
+        if lock_changed:
+            self._apply_drag_cursor()
+            if self._cfg.get("locked", True):
+                self._drag_offset = None
         self.move(cfg.get("x", self.x()), cfg.get("y", self.y()))
 
     def _refit(self) -> None:

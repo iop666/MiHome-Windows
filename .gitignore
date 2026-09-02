@@ -41,6 +41,9 @@ auth.json
 devices_cache.json
 .mihome_cache/
 
+# device product image cache: .icons/<model>.png
+.icons/
+
 # 用户个性化配置（每个人不同）
 tray.json
 tray_ops.json
