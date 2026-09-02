@@ -1106,12 +1106,9 @@ class SettingsDialog(OverlayDialog):
 
     def showEvent(self, event) -> None:  # noqa: N802
         super().showEvent(event)
-        if self._fill_parent_window():
-            # 主界面可见：覆盖主窗口，遮罩只遮住主窗口区域
-            self.raise_()
-            self._fade_in()
-            return
-        # 托盘触发且主窗口隐藏：铺满可用屏幕，面板可在整个屏幕内拖动
+        # 一律铺满可用屏幕（不随主窗口裁剪）：面板可拖到主窗口边框之外
+        # 完整显示；此前主界面可见时对话框只覆盖主窗口客户区，面板移出
+        # 主界面边框即被裁掉（设置页/米家场景均遇到）
         from PySide6.QtGui import QGuiApplication
         screen = QGuiApplication.primaryScreen()
         if screen is not None:

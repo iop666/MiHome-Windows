@@ -233,10 +233,8 @@ class ScenesDialog(OverlayDialog):
 
     def showEvent(self, event) -> None:  # noqa: N802
         super().showEvent(event)
-        if self._fill_parent_window():
-            self.raise_()
-            self._fade_in()
-            return
+        # 一律铺满可用屏幕：面板可移出主窗口边框仍完整显示（曾只覆盖
+        # 主窗口客户区，内容超出主界面边界即被裁剪）
         from PySide6.QtGui import QGuiApplication
         screen = QGuiApplication.primaryScreen()
         if screen is not None:
