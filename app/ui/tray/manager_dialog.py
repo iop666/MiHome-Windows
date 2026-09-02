@@ -16,19 +16,27 @@ from PySide6.QtWidgets import (
 )
 
 from app.core import tray_store
+from app.core.jobs import JobExecutor
 from app.core.models import DeviceInfo
+from app.core.service import MijiaService
 from app.ui.overlay_dialog import OverlayDialog
 from app.ui.si_theme import SiColors
 from app.ui.tray.draggable_row import _DraggableRow
 
+import qtawesome as qta
+
 
 class TrayManagerDialog(OverlayDialog):
-    """托盘设备管理：拖拽排序 + 勾选加入托盘，默认空。"""
+    """托盘设备管理：拖拽排序 + 勾选加入托盘 + 逐台调节项自选，默认空。"""
 
-    def __init__(self, devices: list[DeviceInfo], parent=None):
+    def __init__(self, devices: list[DeviceInfo], parent=None,
+                 service: MijiaService | None = None,
+                 jobs: JobExecutor | None = None):
         # 与设备详情/添加抽屉同款观感：无边框圆角面板；
         # 但面板铺满窗口并带可拖拽标题栏，保持可移动性，无遮罩
         super().__init__(parent, overlay=False)
+        self._service = service
+        self._jobs = jobs
         self.setWindowTitle("管理托盘设备")
         self._drag_did: str | None = None
         self.setAcceptDrops(True)
@@ -58,7 +66,8 @@ class TrayManagerDialog(OverlayDialog):
         header.addWidget(self._make_close_button())
         lay.addWidget(title_bar)
 
-        subtitle = QLabel("勾选加入托盘快捷窗口，可长按拖拽排序")
+        subtitle = QLabel("勾选加入托盘快捷窗口（可长按拖拽排序）；点「调节」可为该设备选择行内展开的调节项")
+        subtitle.setWordWrap(True)
         subtitle.setStyleSheet(f"color: {SiColors.TEXT_SECONDARY}; background: transparent; font-size: 9pt;")
         lay.addWidget(subtitle)
 
@@ -121,6 +130,22 @@ class TrayManagerDialog(OverlayDialog):
                 f"QPushButton:hover {{ background: {SiColors.BTN_HOVER}; }}"
                 "QPushButton:checked:hover { background: #4ccdb5; }")
             self._checks[dev.did] = btn
+            # 「调节项」入口：仅为在线设备启用（离线也允许配置，但保持可点）
+            ops_btn = QPushButton()
+            ops_btn.setFixedSize(22, 22)
+            ops_btn.setCursor(Qt.PointingHandCursor)
+            ops_btn.setToolTip("调节项…")
+            ops_btn.setIcon(qta.icon('mdi.tune-variant',
+                                     color=SiColors.TEXT_SECONDARY))
+            ops_btn.setIconSize(ops_btn.size())
+            ops_btn.setStyleSheet(
+                f"QPushButton {{ background: {SiColors.SURFACE}; border: none;"
+                f" border-radius: 11px; }}"
+                f"QPushButton:hover {{ background: {SiColors.BTN_HOVER}; }}")
+            ops_btn.clicked.connect(lambda _, d=dev: self._open_ops(d))
+            if self._service is None or self._jobs is None:
+                ops_btn.setEnabled(False)
+            rl.addWidget(ops_btn)
             rl.addWidget(btn)
             self._rows[dev.did] = row
             row.dragStarted.connect(self._on_drag_start)
@@ -290,6 +315,14 @@ class TrayManagerDialog(OverlayDialog):
             if row.geometry().contains(pos):
                 return did
         return None
+
+    def _open_ops(self, dev: DeviceInfo) -> None:
+        """打开该设备的「调节项」勾选对话框。"""
+        if self._service is None or self._jobs is None:
+            return
+        from app.ui.tray.ops_dialog import TrayOpsDialog
+        dlg = TrayOpsDialog(self._service, self._jobs, dev, self)
+        dlg.exec()
 
     def selected_dids(self) -> list[str]:
         """按当前布局顺序返回已勾选的 did。"""

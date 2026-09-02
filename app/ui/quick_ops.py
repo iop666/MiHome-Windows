@@ -19,7 +19,7 @@
 
 import shiboken6
 
-from PySide6.QtCore import QPoint, Qt, QTimer
+from PySide6.QtCore import QPoint, Qt, QTimer, Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QFrame,
@@ -57,45 +57,66 @@ def _decimals_of(step) -> int:
 
 
 class QuickOpsPopup(QFrame):
-    """一次呼出即为一整套新控件；用完 deleteLater，不常驻。"""
+    """一套自取数/自渲染的可调控件。
+
+    - 默认弹层形态（Qt.Popup，用完 deleteLater）用于卡片快捷操作；
+    - inline=True 时不做弹窗（无窗口标志/无面板底色），直接嵌进宿主
+      布局，供托盘快捷窗口行内展开等场景复用；
+    - show_header=False 时省略设备名/房间标题行（标题由宿主提供）。
+    """
+
+    empty = Signal()  # 无可用调节项（inline 场景宿主据此收起/提示）
 
     def __init__(self, service: MijiaService, jobs: JobExecutor,
-                 device: DeviceInfo, parent=None):
+                 device: DeviceInfo, parent=None,
+                 inline: bool = False, show_header: bool = True,
+                 op_names: list[str] | None = None):
+        """op_names=None 用默认常用项（≤2 滑块+≤2 枚举）；否则按名筛选。"""
         super().__init__(parent)
         self._service = service
         self._jobs = jobs
         self._device = device
         self._did = device.did
         self._online = device.online
+        self._inline = inline
+        self._op_names = op_names
         self._anchor: QPoint | None = None
         self._values: dict[str, object] = {}
 
-        self.setWindowFlags(Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
-        self.setObjectName("quickPanel")
-        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        self.setStyleSheet(
-            f"QFrame#quickPanel {{ background: {SiColors.WINDOW_BG};"
-            f" border: 1px solid {SiColors.LINE}; border-radius: 12px; }}")
+        if not inline:
+            self.setWindowFlags(
+                Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
+            self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+            self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+            self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+            self.setStyleSheet(
+                f"QFrame#quickPanel {{ background: {SiColors.WINDOW_BG};"
+                f" border: 1px solid {SiColors.LINE}; border-radius: 12px; }}")
         # 弹层自身承载内容布局（边框圆角由背景绘制承担）
         self._lay = QVBoxLayout(self)
-        self._lay.setContentsMargins(14, 12, 14, 12)
-        self._lay.setSpacing(8)
-        self.setFixedWidth(_PANEL_W)
+        self._lay.setContentsMargins(14, 12, 14, 12) if not inline \
+            else self._lay.setContentsMargins(2, 4, 2, 4)
+        self._lay.setSpacing(6)
+        if not inline:
+            self.setFixedWidth(_PANEL_W)
 
-        title = QLabel(_short_desc(self._device.name))
-        title.setFont(QFont("Microsoft YaHei UI", 11, QFont.Weight.DemiBold))
-        title.setStyleSheet(f"color: {SiColors.TEXT_PRIMARY}; background: transparent;")
-        sub = QLabel(self._device.room_name + (" · 离线" if not self._online else ""))
-        sub.setStyleSheet(
-            f"color: {SiColors.TEXT_SECONDARY}; background: transparent; font-size: 8pt;")
-        self._lay.addWidget(title)
-        self._lay.addWidget(sub)
+        if show_header:
+            title = QLabel(_short_desc(self._device.name))
+            title.setFont(QFont("Microsoft YaHei UI", 11, QFont.Weight.DemiBold))
+            title.setStyleSheet(
+                f"color: {SiColors.TEXT_PRIMARY}; background: transparent;")
+            sub = QLabel(self._device.room_name
+                         + (" · 离线" if not self._online else ""))
+            sub.setStyleSheet(
+                f"color: {SiColors.TEXT_SECONDARY}; background: transparent;"
+                f" font-size: 8pt;")
+            self._lay.addWidget(title)
+            self._lay.addWidget(sub)
 
         self._hint = QLabel("正在读取可调项…")
         self._hint.setStyleSheet(
-            f"color: {SiColors.TEXT_SECONDARY}; background: transparent; font-size: 9pt;")
+            f"color: {SiColors.TEXT_SECONDARY}; background: transparent;"
+            f" font-size: 9pt;")
         self._lay.addWidget(self._hint)
 
         self._jobs.submit(
@@ -107,7 +128,8 @@ class QuickOpsPopup(QFrame):
     # ---------- 后台取数 ----------
 
     def _fetch(self):
-        defs = self._service.quick_op_defs(self._did)
+        all_defs = self._service.quick_op_candidates(self._did)
+        defs = self._subset(all_defs)
         names = [d.name for d in defs]
         values: dict[str, object] = {}
         if names:
@@ -116,6 +138,15 @@ class QuickOpsPopup(QFrame):
             except Exception:
                 pass  # 读不到值仍可调（从下限起步），不阻塞面板
         return defs, values
+
+    def _subset(self, all_defs) -> list:
+        """按 op_names 自选过滤；None 时取默认常用精简集。"""
+        if self._op_names is None:
+            sliders = [d for d in all_defs if d.kind == "slider"]
+            enums = [d for d in all_defs if d.kind == "enum"]
+            return (sliders[:2] + enums[:2])[:4]
+        by_name = {d.name: d for d in all_defs}
+        return [by_name[n] for n in self._op_names if n in by_name]
 
     def _load_failed(self, error: Exception) -> None:
         if not shiboken6.isValid(self):
@@ -131,6 +162,11 @@ class QuickOpsPopup(QFrame):
             return
         defs, values = payload
         if not defs:
+            if self._inline:
+                # 内嵌场景由宿主决定收起/提示，自行只发信号不弹窗
+                self.empty.emit()
+                self.deleteLater()
+                return
             from app.ui.toast import Toast
             Toast.info(self, f"「{self._device.name}」暂无快捷可调项", 2200)
             self.close()
@@ -139,17 +175,23 @@ class QuickOpsPopup(QFrame):
         self._values = dict(values or {})
         for op in defs:
             self._lay.addWidget(self._build_op_row(op))
-        self.adjustSize()
-        if self.height() > _PANEL_MAX_H:
-            self.setFixedHeight(_PANEL_MAX_H)
+        if not self._inline:
+            self.adjustSize()
+            if self.height() > _PANEL_MAX_H:
+                self.setFixedHeight(_PANEL_MAX_H)
         self.setEnabled(self._online)
         self._place()
 
     def _build_op_row(self, op) -> QWidget:
-        host = QWidget()
-        host.setStyleSheet("background: transparent;")
+        # 行卡片化：独立底 + 圆角，区分于弹层/行底色
+        host = QFrame()
+        host.setObjectName("quickOpCard")
+        host.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        host.setStyleSheet(
+            f"QFrame#quickOpCard {{ background: {SiColors.SURFACE};"
+            f" border: none; border-radius: 10px; }}")
         lay = QVBoxLayout(host)
-        lay.setContentsMargins(0, 2, 0, 2)
+        lay.setContentsMargins(10, 6, 10, 8)
         lay.setSpacing(4)
 
         head = QHBoxLayout()
@@ -302,12 +344,15 @@ class QuickOpsPopup(QFrame):
 
     def popup_near(self, anchor_global: QPoint) -> None:
         """在锚点右下方弹出；延迟到鼠标释放后再 show，避免秒关。"""
+        if self._inline:
+            return
         self._anchor = anchor_global
         QTimer.singleShot(0, self._place)
 
     def _place(self) -> None:
         """按当前几何把窗口放到锚点附近并收进屏幕（内容就绪后再调一次）。"""
-        if not shiboken6.isValid(self) or self._anchor is None:
+        if (not shiboken6.isValid(self) or self._inline
+                or self._anchor is None):
             return
         from PySide6.QtGui import QGuiApplication
         screen = QGuiApplication.primaryScreen()

@@ -696,12 +696,17 @@ class MainWindow(QMainWindow):
             self._tray.hide_quick()
         # 主窗口可能已隐藏到托盘，管理对话框需独立显示
         parent = None if self.isHidden() else self
-        dlg = TrayManagerDialog(self._all_devices, parent)
+        dlg = TrayManagerDialog(self._all_devices, parent,
+                                service=self._service, jobs=self._jobs)
         result = dlg.exec()
         dlg.deleteLater()
         if result == QDialog.Accepted:
+            from app.core import tray_ops_store as _tray_ops
             from app.core import tray_store as _ts
-            _ts.save(dlg.selected_dids())
+            selected = dlg.selected_dids()
+            _ts.save(selected)
+            # 清理已移出托盘设备的调节项配置
+            _tray_ops.cleanup(set(selected))
             self._update_tray_devices()
             Toast.info(self, "托盘设备已更新", 2000)
 

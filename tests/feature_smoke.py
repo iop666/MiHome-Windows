@@ -152,6 +152,9 @@ class _FakeJobs:
 
 class _FakeService:
     def quick_op_defs(self, did):
+        return self.quick_op_candidates(did)
+
+    def quick_op_candidates(self, did):
         from app.core.models import QuickOpInfo
         return [
             QuickOpInfo(name="brightness", desc="亮度", type="int",
@@ -179,6 +182,24 @@ assert len(sliders) == 2, f"期望 2 个滑块，实际 {len(sliders)}"
 assert sliders[0].value() == 60, sliders[0].value()
 assert sliders[1].value() == 4000, sliders[1].value()
 print("5. 快捷操作弹层渲染 + 回填 OK")
+
+# 5b. inline 模式 + 自选 op_names 过滤
+from PySide6.QtWidgets import QVBoxLayout as _QVBoxLayout, QWidget as _QWidget
+
+host_w = _QWidget()
+host_lay = _QVBoxLayout(host_w)
+inline_pop = QuickOpsPopup(fake_svc, _FakeJobs(), device,  # type: ignore
+                           parent=host_w, inline=True, show_header=False)
+host_lay.addWidget(inline_pop)
+host_w.show()
+app.processEvents()
+assert len(inline_pop.findChildren(QSlider)) == 2
+only_ct = QuickOpsPopup(fake_svc, _FakeJobs(), device,  # type: ignore
+                        parent=host_w, inline=True, show_header=False,
+                        op_names=["color-temperature"])
+app.processEvents()
+assert len(only_ct.findChildren(QSlider)) == 1, "op_names 过滤失效"
+print("5b. inline 复用 + 自选过滤 OK")
 
 # ---------- 6. 场景对话框（安全模式禁用态） ----------
 from app.core.safety import get_guard

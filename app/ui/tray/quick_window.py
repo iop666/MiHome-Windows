@@ -30,11 +30,12 @@ from PySide6.QtWidgets import (
 
 import qtawesome as qta
 
-from app.core import settings_store, tray_store
+from app.core import settings_store, tray_ops_store, tray_store
 from app.core.jobs import JobExecutor
 from app.core.models import DeviceInfo, is_speaker
 from app.core.service import MijiaService
 from app.ui.power_button import PowerButton
+from app.ui.quick_ops import QuickOpsPopup
 from app.ui.si_theme import SiColors
 from app.ui.tray.audio_bar import _TrayAudioBar
 from app.ui.typewriter import TypewriterPlaceholder
@@ -57,6 +58,12 @@ class TrayQuickWindow(QDialog):
         self._sub_labels: dict[str, QLabel] = {}
         self._sub_widths: dict[str, int] = {}
         self._columns: int = settings_store.get_tray_columns()
+        # 已展开详细调节的设备 did（展开时列表切单列竖排以容纳控件）
+        self._expanded: set[str] = set()
+        # did -> 行/块头部控件（统一开关状态回填用）
+        self._rows_by_did: dict[str, object] = {}
+        # 列表可视高度：网格固定 4 行；展开态按内容放大
+        self._list_view_h = 4 * 56 + 3 * 6
 
         self.setWindowFlags(
             Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
@@ -243,10 +250,48 @@ class TrayQuickWindow(QDialog):
         self._cols_btn.setToolTip(tip)
 
     def _toggle_columns(self) -> None:
+        # 展开态下先全部收起（竖排模式不参与单双列），再切换列数
+        self._expanded.clear()
+        self._set_list_view_h()
         self._columns = 1 if self._columns == 2 else 2
         settings_store.set_tray_columns(self._columns)
         self._refresh_cols_btn()
         self._rebuild()
+
+    def _set_list_view_h(self, height: int | None = None) -> None:
+        """列表可视高度：默认网格 4 行；传入值（展开态内容高）时放大。"""
+        self._list_view_h = height if height is not None else 4 * 56 + 3 * 6
+        self._scroll.setFixedHeight(self._list_view_h)
+
+    def _fit_expanded_view(self) -> None:
+        """展开态按内容放大可视区（内容含异步行，显示后测量一次）。"""
+        import shiboken6
+
+        if not shiboken6.isValid(self) or not self._expanded:
+            return
+        self._host.adjustSize()
+        want = self._host.sizeHint().height() + 4
+        avail = 460  # 展开态窗口高度上限（其余靠内部滚动）
+        self._set_list_view_h(min(max(want, self._list_view_h), avail))
+        self._sync_tray_height()
+
+    def _toggle_expand(self, did: str) -> None:
+        """行内展开/收起详细调节。"""
+        if did in self._expanded:
+            self._expanded.discard(did)
+            self._rebuild()
+            self._set_list_view_h()  # 收起后恢复网格可视高度
+            return
+        # 明确选择了「不提供调节」的设备不让展开
+        names = tray_ops_store.selected(did)
+        if names == []:
+            from app.ui.toast import Toast
+            Toast.info(self, "该设备未选择调节项，可在「托盘管理」中勾选", 2500)
+            return
+        self._expanded.add(did)
+        self._rebuild()
+        # 等异步调节行渲染后再按内容放大可视区
+        QTimer.singleShot(120, self._fit_expanded_view)
 
     def set_devices(self, devices: list[DeviceInfo], known_power: dict[str, bool | None]) -> None:
         """由主窗口在设备列表刷新后调用，传入全量设备与开关记忆。"""
@@ -322,8 +367,8 @@ class TrayQuickWindow(QDialog):
             ah = self._audio_bar.sizeHint().height()
             audio_h = (ah if ah > 0 else 105) + 8  # 外层 spacing
         voice_h = 36 + 10 if not self._voice_frame.isHidden() else 0  # 36 + 间距10
-        # 根面板：标题 26 + 滚动区 242 + 上间距10 + 下间距10 + 内容边距 24
-        root_h = 26 + 242 + 24 + 20
+        # 根面板：标题 26 + 滚动区实际高度 + 上下间距 + 内容边距 24
+        root_h = 26 + self._scroll.height() + 24 + 20
         h = audio_h + root_h + voice_h
         from PySide6.QtGui import QGuiApplication
         screen = QGuiApplication.primaryScreen()
@@ -459,18 +504,15 @@ class TrayQuickWindow(QDialog):
             return
         for did, st in states.items():
             self._known_power[did] = st
-        # 遍历 QGridLayout 直接子项
-        grid = getattr(self, "_grid", None)
-        if grid is None:
-            return
         for did, st in states.items():
-            for i in range(grid.count()):
-                w = grid.itemAt(i).widget()
-                if w is not None and getattr(w, "_did", None) == did:
-                    btn = getattr(w, "_power_btn", None)
-                    if btn is not None:
-                        btn.set_state(st)
-                    break
+            head = self._rows_by_did.get(did)
+            if head is None or not shiboken6.isValid(head):
+                continue
+            btn = getattr(head, "_power_btn", None)
+            if btn is not None:
+                btn.set_state(st)
+
+    # ---------- 列表重建（网格 / 展开竖排） ----------
 
     def _rebuild(self) -> None:
         self._destroy_grid()
@@ -485,7 +527,21 @@ class TrayQuickWindow(QDialog):
         self._scroll.show()
         lookup = {d.did: d for d in self._devices}
         cards = [lookup[d] for d in dids if lookup.get(d)]
-        # 使用 QGridLayout + setColumnStretch 强制各列等宽，单卡也能保持列宽
+        self._rows_by_did.clear()
+        # 清理已不存在的展开记录
+        self._expanded &= {d.did for d in cards}
+        if self._expanded:
+            self._build_vertical(cards)
+        else:
+            self._set_list_view_h()  # 收起/重开后恢复默认网格可视高度
+            self._build_grid(cards)
+        online_dids = [d for d in dids if lookup.get(d) and lookup[d].online
+                       and self._known_power.get(d) is None]
+        if online_dids:
+            self.refresh_power(online_dids)
+
+    def _build_grid(self, cards: list[DeviceInfo]) -> None:
+        """紧凑网格视图（原单/双列卡片），行头可点击展开。"""
         cols = self._columns
         self._grid = QGridLayout()
         self._grid.setContentsMargins(0, 0, 0, 0)
@@ -494,41 +550,77 @@ class TrayQuickWindow(QDialog):
         self._grid.setHorizontalSpacing(6)
         self._grid.setVerticalSpacing(6)
         for idx, dev in enumerate(cards):
-            row = self._make_row(dev)
-            self._grid.addWidget(row, idx // cols, idx % cols)
+            head = self._make_row_header(dev)
+            self._grid.addWidget(head, idx // cols, idx % cols)
         self._list_lay.addLayout(self._grid)
         self._list_lay.addStretch(1)
-        online_dids = [d for d in dids if lookup.get(d) and lookup[d].online and self._known_power.get(d) is None]
-        if online_dids:
-            self.refresh_power(online_dids)
+
+    def _build_vertical(self, cards: list[DeviceInfo]) -> None:
+        """展开态竖排块：头部 + 行内详细调节。"""
+        for dev in cards:
+            block = self._make_block(dev)
+            self._list_lay.addWidget(block)
+        self._list_lay.addStretch(1)
+
+    def _make_block(self, dev: DeviceInfo) -> QFrame:
+        block = QFrame()
+        block.setAttribute(Qt.WA_StyledBackground, True)
+        block.setStyleSheet("background: transparent; border: none;")
+        vlay = QVBoxLayout(block)
+        vlay.setContentsMargins(0, 0, 0, 0)
+        vlay.setSpacing(4)
+
+        # 头部：占满整行宽度
+        avail = max(96, self.width() - 132)
+        head = self._make_row_header(dev, avail=avail, expandable=True)
+        vlay.addWidget(head)
+
+        # 展开体：按托盘自选调节项渲染（异步取 spec）
+        if dev.did in self._expanded:
+            body = QWidget()
+            body.setStyleSheet("background: transparent;")
+            blay = QVBoxLayout(body)
+            blay.setContentsMargins(0, 0, 0, 0)
+            blay.setSpacing(4)
+            names = tray_ops_store.selected(dev.did)
+            popup = QuickOpsPopup(
+                self._service, self._jobs, dev, parent=body,
+                inline=True, show_header=False, op_names=names)
+            popup.empty.connect(lambda d=dev.did: self._on_inline_empty(d))
+            blay.addWidget(popup)
+            vlay.addWidget(body)
+        return block
+
+    def _on_inline_empty(self, did: str) -> None:
+        """展开后无可调节项：自动收起回紧凑视图。"""
+        import shiboken6
+
+        if did in self._expanded:
+            self._expanded.discard(did)
+            if shiboken6.isValid(self):
+                self._rebuild()
+                self._set_list_view_h()
+        from app.ui.toast import Toast
+        Toast.info(self, "该设备没有可选的调节项", 2000)
 
     def _destroy_grid(self) -> None:
-        grid = getattr(self, "_grid", None)
-        if grid is None:
-            return
-        # 移除 _list_lay 中的 grid 布局项
-        for i in range(self._list_lay.count()):
-            item = self._list_lay.itemAt(i)
-            if item and item.layout() is grid:
-                self._list_lay.takeAt(i)
-                break
-        # 清理 grid 中的 widget
-        while grid.count():
-            it = grid.takeAt(0)
-            if w := it.widget():
-                w.deleteLater()
-        grid.deleteLater()
-        self._grid = None
+        # 移除并销毁列表里的全部条目：网格布局 或 竖排块 widget
+        self._rows_by_did.clear()
         self._sub_labels.clear()
         self._sub_widths.clear()
-        # 移除多余的 stretch
-        for i in range(self._list_lay.count() - 1, -1, -1):
-            item = self._list_lay.itemAt(i)
-            if item and item.spacerItem():
-                self._list_lay.takeAt(i)
-                break
+        while self._list_lay.count():
+            item = self._list_lay.takeAt(0)
+            if w := item.widget():
+                w.deleteLater()
+            elif lay := item.layout():
+                while lay.count():
+                    it = lay.takeAt(0)
+                    if w2 := it.widget():
+                        w2.deleteLater()
+                lay.deleteLater()
+        self._grid = None
 
-    def _card_text_width(self, has_power: bool) -> int:
+    def _card_text_width(self, has_power: bool, extra_expand: bool = True) -> int:
         """卡片文本列的可用宽度（窗口宽固定，各边距确定，可直接算出）。
 
         卡片内文本不省略时 QLabel 最小宽取整段文本，温湿度+开关会把
@@ -537,8 +629,11 @@ class TrayQuickWindow(QDialog):
         # 根面板左右边距 28 + 列表右边距 6 + 列间距 6×(cols-1)
         inner = self.width() - 40 - 6 * (self._columns - 1)
         col = inner / self._columns
-        # 卡片左右边距 24 + 文本列与开关间距 10 + 开关按钮 28
-        return max(36, round(col - 24 - 10 - (28 if has_power else 0)))
+        # 卡片左右边距 24 + 文本列与右侧控件间距 10 + 展开钮 22+6
+        # + 开关按钮 28
+        ctrl = (22 + 6) if extra_expand else 0
+        ctrl += (28 + 10) if has_power else 0
+        return max(36, round(col - 24 - ctrl - 10))
 
     @staticmethod
     def _set_elided(label: QLabel, text: str, width: int | None) -> None:
@@ -550,43 +645,48 @@ class TrayQuickWindow(QDialog):
                 text, Qt.ElideRight, width))
         label.setToolTip(text)
 
-    def _make_row(self, dev: DeviceInfo) -> QFrame:
+    def _make_row_header(self, dev: DeviceInfo, avail: int | None = None,
+                         expandable: bool = False) -> QFrame:
+        from PySide6.QtWidgets import QSizePolicy
+
         row = QFrame()
         row.setObjectName("trayRow")
         row.setAttribute(Qt.WA_StyledBackground, True)
         row.setFixedHeight(56)
-        from PySide6.QtWidgets import QSizePolicy
         row.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         row.setStyleSheet(
-            f"QFrame#trayRow {{ background: {SiColors.CARD}; border: 1px solid {SiColors.LINE}; border-radius: 10px; }}"
-            f"QFrame#trayRow:hover {{ background: {SiColors.CARD_HOVER}; border-color: {SiColors.CARD_BORDER_HOVER}; }}")
+            f"QFrame#trayRow {{ background: {SiColors.CARD}; border: 1px solid {SiColors.LINE};"
+            f" border-radius: 10px; }}"
+            f"QFrame#trayRow:hover {{ background: {SiColors.CARD_HOVER};"
+            f" border-color: {SiColors.CARD_BORDER_HOVER}; }}")
         lay = QHBoxLayout(row)
         lay.setContentsMargins(12, 8, 12, 8)
         lay.setSpacing(10)
 
         known = self._known_power.get(dev.did)
-        avail = self._card_text_width(known is not None)
+        if avail is None:
+            avail = self._card_text_width(known is not None, extra_expand=True)
 
         text_col = QVBoxLayout()
         text_col.setSpacing(2)
         name = QLabel()
         name.setFont(QFont("Microsoft YaHei UI", 10, QFont.Weight.DemiBold))
-        name.setStyleSheet(f"color: {SiColors.TEXT_PRIMARY if dev.online else f'{SiColors.OFFLINE_TEXT}'}; background: transparent;")
+        name.setStyleSheet(
+            f"color: {SiColors.TEXT_PRIMARY if dev.online else SiColors.OFFLINE_TEXT};"
+            " background: transparent;")
         # 水平 Ignored：布局可无限压缩标签，文本绝不可能把列撑宽
-        # （setMinimumWidth(0) 无效——qSmartMinSize 只认 >0 的显式最小宽）
         name.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         self._set_elided(name, dev.name, avail)
-        # 副标题：在线仅显示房间（+温湿度），离线才追加“· 离线”
         metrics = self._metrics.get(dev.did)
         if dev.online:
             sub_text = f"{dev.room_name} | {metrics}" if metrics else dev.room_name
         else:
             sub_text = f"{dev.room_name} · 离线"
         sub = QLabel()
-        # setFont 提供与渲染一致的 fontMetrics；但应用级 QSS `*{font-size:10pt}`
-        # 会盖掉 setFont，故样式表里也要写 8pt，两者缺一度量与渲染就不一致
         sub.setFont(QFont("Microsoft YaHei UI", 8))
-        sub.setStyleSheet(f"color: {SiColors.TEXT_SECONDARY if dev.online else f'{SiColors.OFFLINE_SUB}'}; background: transparent; font-size: 8pt;")
+        sub.setStyleSheet(
+            f"color: {SiColors.TEXT_SECONDARY if dev.online else SiColors.OFFLINE_SUB};"
+            " background: transparent; font-size: 8pt;")
         sub.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         self._set_elided(sub, sub_text, avail)
         self._sub_labels[dev.did] = sub
@@ -595,10 +695,30 @@ class TrayQuickWindow(QDialog):
         text_col.addWidget(sub)
         lay.addLayout(text_col, stretch=1)
 
+        # 展开（调节）按钮：有自选记录（含未自选=自动默认）都可点
+        is_expanded = dev.did in self._expanded
+        chev = QPushButton()
+        chev.setFixedSize(22, 22)
+        chev.setCursor(Qt.PointingHandCursor)
+        chev.setIconSize(QSize(16, 16))
+        chev.setToolTip("收起调节" if is_expanded else "调节")
+        chev.setIcon(qta.icon('mdi.chevron-up' if is_expanded
+                              else 'mdi.tune-variant',
+                              color=SiColors.TEXT_SECONDARY))
+        chev.setStyleSheet(
+            f"QPushButton {{ background: {SiColors.SURFACE}; border: none;"
+            f" border-radius: 11px; }}"
+            f"QPushButton:hover {{ background: {SiColors.BTN_HOVER}; }}")
+        chev.setAutoDefault(False)
+        chev.setDefault(False)
+        chev.clicked.connect(lambda _, d=dev.did: self._toggle_expand(d))
+        lay.addWidget(chev)
+
         btn = None
         if known is not None:
             btn = PowerButton(28, icon_size=22)
             btn.set_state(known)
+
             def _on_toggle(checked=False, d=dev.did, b=btn):
                 b.set_busy(True)
                 self._jobs.submit(
@@ -611,8 +731,11 @@ class TrayQuickWindow(QDialog):
         row._did = dev.did  # type: ignore[attr-defined]
         row._power_btn = btn  # type: ignore[attr-defined]
 
-        row.mousePressEvent = lambda e, d=dev.did: self.open_device_requested.emit(d) if e.button() == Qt.LeftButton else None
+        row.mousePressEvent = (  # type: ignore[attr-defined]
+            lambda e, d=dev.did: self.open_device_requested.emit(d)
+            if e.button() == Qt.LeftButton else None)
         row.setCursor(Qt.PointingHandCursor)
+        self._rows_by_did[dev.did] = row
         return row
 
     def _on_toggle_done(self, did: str, ns: bool, btn) -> None:

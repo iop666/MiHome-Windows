@@ -845,10 +845,22 @@ class MijiaService:
                 or "temperature" in n or "volume" in n)
 
     def quick_op_defs(self, did: str) -> list[QuickOpInfo]:
-        """从 spec 推导卡片快捷可调项（数量受限，仅紧凑形态）。
+        """默认快捷可调项（紧凑精简集：≤2 滑块 + ≤2 枚举，共 ≤4）。
 
+        供卡片/弹层直接呼出时使用；需要更多或自选时用
+        quick_op_candidates() 全量清单。
+        """
+        candidates = self.quick_op_candidates(did)
+        sliders = [c for c in candidates if c.kind == "slider"]
+        enums = [c for c in candidates if c.kind == "enum"]
+        return (sliders[:2] + enums[:2])[:4]
+
+    def quick_op_candidates(self, did: str) -> list[QuickOpInfo]:
+        """该设备全部可紧凑调节的候选项（托盘「调节项」自选用）。
+
+        排序：高频滑块（亮度/色温/音量…）→ 其余滑块 → 小枚举；
         开关类（bool/on 系列）不在此列——电源钮已覆盖；只读/字符串/
-        长枚举同样跳过。spec 未拉取或型号无属性时返回空列表。
+        过长枚举（>12 项）同样跳过。spec 未拉取或型号无属性时为空。
         """
         spec = self._specs_for([did]).get(did)
         if not spec:
@@ -867,14 +879,12 @@ class MijiaService:
                 sliders.append(prop)
             elif prop.get("value-list") and ptype != "string":
                 options = prop.get("value-list") or []
-                if 0 < len(options) <= 6:
+                if 0 < len(options) <= 12:
                     enums.append(prop)
-        # 高频滑块优先，其次其它滑块；同档内按 spec 顺序
         sliders.sort(key=lambda p: (0 if self._primary_slider_name(
             p.get("name", "")) else 1,))
-        picked = sliders[:2] + enums[:2]
         result = []
-        for prop in picked[:4]:
+        for prop in sliders + enums:
             result.append(QuickOpInfo(
                 name=prop.get("name", ""),
                 desc=str(prop.get("description") or prop.get("name", "")),
