@@ -10,14 +10,16 @@
 实现要点：
 - 数据（spec 推导的可调项 + 当前值批量回读）经 JobExecutor 后台获取，
   拿到后才渲染行控件；无可用项时提示后自动收起。
-- 每个控件用闭包持有自己的取值/回显状态（互不串扰）；
-  滑块松手才提交（write_quick_value），失败 Toast 提示。
-- 离线设备整体禁用。
+- 每个控件用闭包持有自己的取值/回显状态（互不串扰）；滑块松手才提交
+  （write_quick_value），失败 Toast 提示。
+- 弹层自身直接承载内容布局（不再包一层 root），保证 adjustSize 有效；
+  show 延迟到本事件循环之后：在按钮的 mouse 事件里立刻 show Popup，
+  紧随其后的 MouseRelease 会被 Qt 当作「点击弹层外部」而秒关弹层。
 """
 
 import shiboken6
 
-from PySide6.QtCore import QPoint, Qt
+from PySide6.QtCore import QPoint, Qt, QTimer
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QFrame,
@@ -35,7 +37,7 @@ from app.core.models import DeviceInfo
 from app.core.service import MijiaService
 from app.ui.si_theme import SiColors
 
-_PANEL_W = 288
+_PANEL_W = 292
 _PANEL_MAX_H = 400
 
 
@@ -65,21 +67,22 @@ class QuickOpsPopup(QFrame):
         self._device = device
         self._did = device.did
         self._online = device.online
-        # name -> 最近一次读数（提交后更新；只用于回显兜底）
+        self._anchor: QPoint | None = None
         self._values: dict[str, object] = {}
 
         self.setWindowFlags(Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
-
-        self._root = QFrame(self)
-        self._root.setObjectName("quickPanel")
-        self._root.setStyleSheet(
+        self.setObjectName("quickPanel")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setStyleSheet(
             f"QFrame#quickPanel {{ background: {SiColors.WINDOW_BG};"
             f" border: 1px solid {SiColors.LINE}; border-radius: 12px; }}")
-        self._lay = QVBoxLayout(self._root)
+        # 弹层自身承载内容布局（边框圆角由背景绘制承担）
+        self._lay = QVBoxLayout(self)
         self._lay.setContentsMargins(14, 12, 14, 12)
         self._lay.setSpacing(8)
+        self.setFixedWidth(_PANEL_W)
 
         title = QLabel(_short_desc(self._device.name))
         title.setFont(QFont("Microsoft YaHei UI", 11, QFont.Weight.DemiBold))
@@ -94,8 +97,6 @@ class QuickOpsPopup(QFrame):
         self._hint.setStyleSheet(
             f"color: {SiColors.TEXT_SECONDARY}; background: transparent; font-size: 9pt;")
         self._lay.addWidget(self._hint)
-
-        self.setFixedWidth(_PANEL_W)
 
         self._jobs.submit(
             self._fetch,
@@ -139,23 +140,10 @@ class QuickOpsPopup(QFrame):
         for op in defs:
             self._lay.addWidget(self._build_op_row(op))
         self.adjustSize()
-        self.setFixedSize(self.sizeHint().width(),
-                          min(self.sizeHint().height(), _PANEL_MAX_H))
+        if self.height() > _PANEL_MAX_H:
+            self.setFixedHeight(_PANEL_MAX_H)
         self.setEnabled(self._online)
-        self._ensure_on_screen()
-
-    def _ensure_on_screen(self) -> None:
-        """内容高度确定后再次收回到屏幕内（初弹时按最小预估定位）。"""
-        from PySide6.QtGui import QGuiApplication
-        screen = QGuiApplication.primaryScreen()
-        if screen is None:
-            return
-        geo = screen.availableGeometry()
-        g = self.geometry()
-        x = max(geo.left() + 8, min(g.x(), geo.right() - g.width() - 8))
-        y = max(geo.top() + 8, min(g.y(), geo.bottom() - g.height() - 8))
-        if (x, y) != (g.x(), g.y()):
-            self.move(x, y)
+        self._place()
 
     def _build_op_row(self, op) -> QWidget:
         host = QWidget()
@@ -310,23 +298,25 @@ class QuickOpsPopup(QFrame):
         from app.ui.toast import Toast
         Toast.info(self, f"设置失败：{error}", 3500)
 
-    # ---------- 定位 ----------
+    # ---------- 定位与显示 ----------
 
     def popup_near(self, anchor_global: QPoint) -> None:
-        """在锚点右下方弹出，越界时向内收缩（高度未定按最小预估）。"""
-        from PySide6.QtGui import QGuiApplication
+        """在锚点右下方弹出；延迟到鼠标释放后再 show，避免秒关。"""
+        self._anchor = anchor_global
+        QTimer.singleShot(0, self._place)
 
-        self.adjustSize()
+    def _place(self) -> None:
+        """按当前几何把窗口放到锚点附近并收进屏幕（内容就绪后再调一次）。"""
+        if not shiboken6.isValid(self) or self._anchor is None:
+            return
+        from PySide6.QtGui import QGuiApplication
         screen = QGuiApplication.primaryScreen()
         geo = screen.availableGeometry() if screen is not None else None
-        x = anchor_global.x() + 4
-        y = anchor_global.y() + 8
+        x = self._anchor.x() + 4
+        y = self._anchor.y() + 8
         if geo is not None:
-            x = min(x, geo.right() - self.width() - 8)
-            y = min(y, geo.bottom() - self.height() - 8)
-        x = max(x, geo.left() + 8 if geo is not None else 0)
-        y = max(y, geo.top() + 8 if geo is not None else 0)
+            x = max(geo.left() + 8, min(x, geo.right() - self.width() - 8))
+            y = max(geo.top() + 8, min(y, geo.bottom() - self.height() - 8))
         self.move(x, y)
         self.show()
         self.raise_()
-        self.activateWindow()

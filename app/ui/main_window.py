@@ -117,6 +117,8 @@ class MainWindow(QMainWindow):
         self._known_power: dict[str, bool | None] = {}
         # did -> 环境读数文案（温湿度），随轮询更新、随网格重建回填
         self._metrics: dict[str, str | None] = {}
+        # did -> 排队等待执行的开关点击次数（忙碌期点击不再被吞，逐次串行）
+        self._power_pending: dict[str, int] = {}
         # 刷新防重入：请求在途时忽略再次点击
         self._loading_devices = False
         # 启动自动检查更新每次进程只做一次，避免 start 被重复触发
@@ -1203,33 +1205,59 @@ class MainWindow(QMainWindow):
     # ---------- 快速开关 ----------
 
     def _on_power_clicked(self, did: str) -> None:
+        """电源钮点击：忙期不吞点击——计数排队，逐次串行执行。
+
+        设备执行（含网络往返）有延迟；若忙碌时禁用按钮，快速连点会
+        被吞成一次命令。改为把每次点击计入 _power_pending，当前命令
+        完成后自动补发下一条，直到队列清空（点 N 次 = 设备执行 N 次）。
+        """
         card = self._cards.get(did)
-        if card is None:
+        if card is None or not card.device.online:
             return
         card.set_busy(True)
+        pending = self._power_pending.get(did, 0) + 1
+        self._power_pending[did] = pending
+        if pending == 1:
+            self._drain_power_queue(did)
+
+    def _drain_power_queue(self, did: str) -> None:
+        """为 did 补发一条开关命令（读当前值取反写回，逐条执行）。"""
         self._jobs.submit(
             lambda: self._service.toggle_power(did),
-            on_success=lambda new_state, c=card, d=did:
-                self._on_power_done(c, d, new_state),
-            on_error=lambda err, c=card: self._on_power_failed(c, err),
+            on_success=lambda state: self._on_power_step_done(did, state),
+            on_error=lambda err: self._on_power_step_failed(did, err),
         )
 
-    def _on_power_done(self, card: DeviceCard, did: str, new_state: bool) -> None:
-        # 卡片可能在任务排队期间随网格重建被销毁，回调前先确认存活
-        if not shiboken6.isValid(card):
-            return
-        card.set_busy(False)
-        card.set_power_state(new_state)
+    def _power_device_name(self, did: str) -> str:
+        dev = next((d for d in self._all_devices if d.did == did), None)
+        return dev.name if dev is not None else did
+
+    def _on_power_step_done(self, did: str, new_state: bool) -> None:
+        # 卡片可能在排队期间随网格重建被销毁，回填前先确认存活；
+        # 队列推进不依赖卡片存在（重建后照常执行剩余命令）
+        card = self._cards.get(did)
+        if card is not None and shiboken6.isValid(card):
+            card.set_power_state(new_state)
         self._known_power[did] = new_state
         self._update_tray_devices()
-        Toast.info(
-            self, f"已{'打开' if new_state else '关闭'}「{card.device.name}」", 2500
-        )
-
-    def _on_power_failed(self, card: DeviceCard, error: Exception) -> None:
-        if not shiboken6.isValid(card):
+        pending = self._power_pending.get(did, 0)
+        if pending is None or pending <= 1:
+            self._power_pending.pop(did, None)
+            if card is not None and shiboken6.isValid(card):
+                card.set_busy(False)
+            Toast.info(
+                self, f"已{'打开' if new_state else '关闭'}「{self._power_device_name(did)}」",
+                2500)
             return
-        card.set_busy(False)
+        # 仍有排队点击：补发下一条（toggle 每次读云端实时值，语义正确）
+        self._power_pending[did] = pending - 1
+        self._drain_power_queue(did)
+
+    def _on_power_step_failed(self, did: str, error: Exception) -> None:
+        self._power_pending.pop(did, None)
+        card = self._cards.get(did)
+        if card is not None and shiboken6.isValid(card):
+            card.set_busy(False)
         QMessageBox.warning(self, "操作失败", str(error))
 
     # ---------- 详情 ----------

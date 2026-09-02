@@ -40,12 +40,14 @@ class PowerButton(QPushButton):
 
     def set_online(self, online: bool) -> None:
         self._online = online
-        self.setEnabled(online and not self._busy)
+        # 忙碌不视为离线：执行有延迟，保持可点以允许连续点击排队
+        self.setEnabled(online)
         self._apply()
 
     def set_busy(self, busy: bool) -> None:
         self._busy = busy
-        self.setEnabled(self._online and not busy)
+        # 忙碌期间保持可点：快速连续点击逐个排队执行，不吞点击
+        self.setEnabled(self._online)
         self._apply()
 
     def _apply(self) -> None:
