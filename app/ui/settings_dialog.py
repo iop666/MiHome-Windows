@@ -397,10 +397,13 @@ class SettingsDialog(OverlayDialog):
         self._show_tab(index, animated=True)
 
     def _show_tab(self, index: int, animated: bool) -> None:
-        """切页：直接替换后新页整体淡入（与主页房间切换同款观感）。"""
+        """切页：隐藏全部其它页后让目标页淡入（三页及以上关键：一次
+        只藏一页会残留第三页重叠，表现为设置界面内容错乱/空白）。"""
         pages = (self._appearance_scroll, self._tray_scroll,
                  self._features_scroll)
-        pages[1 - index].hide()
+        for i, page in enumerate(pages):
+            if i != index:
+                page.hide()
         incoming = pages[index]
         # 清掉可能残留的旧效果，避免快速连续切换时叠在新一轮动画上
         incoming.setGraphicsEffect(None)
