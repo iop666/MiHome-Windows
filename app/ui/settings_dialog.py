@@ -37,8 +37,8 @@ from app.ui.si_theme import (
 _THEME_MODE_LABELS = {"system": "跟随系统", "light": "浅色模式", "dark": "深色模式"}
 _THEME_LABEL_TO_MODE = {v: k for k, v in _THEME_MODE_LABELS.items()}
 
-_TAB_APPEARANCE, _TAB_FEATURES = 0, 1
-_TAB_TITLES = ("主题界面", "应用功能")
+_TAB_APPEARANCE, _TAB_TRAY, _TAB_FEATURES = 0, 1, 2
+_TAB_TITLES = ("主题界面", "托盘设置", "应用功能")
 # 切页淡入时长：与主页房间切换同款
 _FADE_MS = 160
 
@@ -136,8 +136,10 @@ class SettingsDialog(OverlayDialog):
         lay.addWidget(self._pages_host, stretch=1)
 
         self._appearance_scroll = self._build_appearance_page()
+        self._tray_scroll = self._build_tray_page()
         self._features_scroll = self._build_features_page()
         self._pages_host.add_page(self._appearance_scroll)
+        self._pages_host.add_page(self._tray_scroll)
         self._pages_host.add_page(self._features_scroll)
 
         # ---- 底部按钮 ----
@@ -253,53 +255,8 @@ class SettingsDialog(OverlayDialog):
 
         return self._build_scroll([self._theme_item, self._scale_item, self._fab_item])
 
-    def _build_features_page(self) -> QScrollArea:
-        """应用功能：开机自启动、默认指挥的音箱、系统托盘、托盘方式启动、隐藏无功能设备。"""
-        # ── 开机自启动（写注册表 HKCU Run，默认关闭） ──
-        self._autostart_item, self._autostart_label, self._autostart_desc, autostart_row = \
-            self._make_item("开机自启动", "")
-        self._autostart_toggle = themed_switch()
-        # 自启动仅构建版支持：开发模式置灰并提示，保存时清理残留注册项
-        self._autostart_supported = settings_store.autostart_supported()
-        if self._autostart_supported:
-            self._autostart_desc.setText(
-                "开启后，Windows 登录时自动启动米家（可与「以系统托盘方式启动」搭配静默运行）")
-            self._autostart_toggle.setChecked(settings_store.get_autostart())
-        else:
-            self._autostart_desc.setText(
-                "仅构建版（build.ps1 产物 dist/MiHome-Windows.exe）支持；当前为源码运行模式，"
-                "保存设置时将清除残留的自启动注册项")
-        _sync_switch(self._autostart_toggle)
-        self._autostart_toggle.setEnabled(self._autostart_supported)
-        autostart_row.addWidget(self._autostart_toggle)
-
-        # ── 默认输出音箱（小爱指令发往哪台音箱） ──
-        self._speaker_item, self._speaker_label, self._speaker_desc, speaker_row = self._make_item(
-            "默认指挥的音箱",
-            "小爱语音指令默认发往的音箱；选择「自动」时使用设备列表中第一个在线音箱")
-        # 全部音箱（含离线，离线时运行中自动回退）；在线优先排序
-        speakers = sorted(
-            (d for d in self._devices if is_speaker(d)),
-            key=lambda d: (0 if d.online else 1, d.name, d.did),
-        )
-        self._speaker_options: list[tuple[str, str]] = [
-            ("", "自动（第一个在线音箱）"),
-        ] + [(d.did, f"{d.name}（{d.room_name}）") for d in speakers]
-        current_did = settings_store.get_default_speaker_did()
-        cur_label = next(
-            (label for did, label in self._speaker_options if did == current_did),
-            self._speaker_options[0][1],
-        )
-        self._speaker_combo = themed_combo(
-            [label for _, label in self._speaker_options], current=cur_label)
-        # 音箱名含房间号可能较长：按最长选项文本自适应宽度
-        # （字体度量 + 箭头/内边距余量），避免选项被裁切
-        fm = self._speaker_combo.fontMetrics()
-        option_labels = [label for _, label in self._speaker_options]
-        text_w = max((fm.horizontalAdvance(t) for t in option_labels), default=120)
-        self._speaker_combo.setFixedWidth(min(max(text_w + 48, 150), 300))
-        speaker_row.addWidget(self._speaker_combo)
-
+    def _build_tray_page(self) -> QScrollArea:
+        """托盘设置：系统托盘相关项集中归类。"""
         # ── 带快捷操作面板的系统托盘 ──
         self._tray_item, self._tray_label, self._tray_desc, tray_row = self._make_item(
             "带快捷操作面板的系统托盘",
@@ -345,6 +302,58 @@ class SettingsDialog(OverlayDialog):
             current=dict(self._pos_options)[settings_store.get_tray_position()])
         pos_row.addWidget(self._pos_combo)
 
+        return self._build_scroll([
+            self._tray_item, self._start_min_item,
+            self._always_item, self._pos_item,
+        ])
+
+    def _build_features_page(self) -> QScrollArea:
+        """应用功能：开机自启动、默认指挥的音箱、隐藏无功能设备、自动更新。"""
+        # ── 开机自启动（写注册表 HKCU Run，默认关闭） ──
+        self._autostart_item, self._autostart_label, self._autostart_desc, autostart_row = \
+            self._make_item("开机自启动", "")
+        self._autostart_toggle = themed_switch()
+        # 自启动仅构建版支持：开发模式置灰并提示，保存时清理残留注册项
+        self._autostart_supported = settings_store.autostart_supported()
+        if self._autostart_supported:
+            self._autostart_desc.setText(
+                "开启后，Windows 登录时自动启动米家（可与「以系统托盘方式启动」搭配静默运行）")
+            self._autostart_toggle.setChecked(settings_store.get_autostart())
+        else:
+            self._autostart_desc.setText(
+                "仅构建版（build.ps1 产物 dist/MiHome-Windows.exe）支持；当前为源码运行模式，"
+                "保存设置时将清除残留的自启动注册项")
+        _sync_switch(self._autostart_toggle)
+        self._autostart_toggle.setEnabled(self._autostart_supported)
+        autostart_row.addWidget(self._autostart_toggle)
+
+        # ── 默认输出音箱（小爱指令发往哪台音箱） ──
+        self._speaker_item, self._speaker_label, self._speaker_desc, speaker_row = self._make_item(
+            "默认指挥的音箱",
+            "小爱语音指令默认发往的音箱；选择「自动」时使用设备列表中第一个在线音箱")
+        # 全部音箱（含离线，离线时运行中自动回退）；在线优先排序
+        speakers = sorted(
+            (d for d in self._devices if is_speaker(d)),
+            key=lambda d: (0 if d.online else 1, d.name, d.did),
+        )
+        self._speaker_options: list[tuple[str, str]] = [
+            ("", "自动（第一个在线音箱）"),
+        ] + [(d.did, f"{d.name}（{d.room_name}）") for d in speakers]
+        current_did = settings_store.get_default_speaker_did()
+        cur_label = next(
+            (label for did, label in self._speaker_options if did == current_did),
+            self._speaker_options[0][1],
+        )
+        self._speaker_combo = themed_combo(
+            [label for _, label in self._speaker_options], current=cur_label)
+        # 音箱名含房间号可能较长：按最长选项文本自适应宽度
+        # （字体度量 + 箭头/内边距余量），避免选项被裁切
+        fm = self._speaker_combo.fontMetrics()
+        option_labels = [label for _, label in self._speaker_options]
+        text_w = max((fm.horizontalAdvance(t) for t in option_labels), default=120)
+        self._speaker_combo.setFixedWidth(min(max(text_w + 48, 150), 300))
+        speaker_row.addWidget(self._speaker_combo)
+
         # ── 隐藏无可控制功能的设备 ──
         self._hide_item, self._hide_label, self._hide_desc, hide_row = self._make_item(
             "隐藏无可控制功能的设备",
@@ -365,8 +374,7 @@ class SettingsDialog(OverlayDialog):
         update_row.addWidget(self._update_toggle)
 
         return self._build_scroll([
-            self._autostart_item, self._speaker_item, self._tray_item,
-            self._start_min_item, self._always_item, self._pos_item,
+            self._autostart_item, self._speaker_item,
             self._hide_item, self._update_item,
         ])
 
@@ -390,7 +398,8 @@ class SettingsDialog(OverlayDialog):
 
     def _show_tab(self, index: int, animated: bool) -> None:
         """切页：直接替换后新页整体淡入（与主页房间切换同款观感）。"""
-        pages = (self._appearance_scroll, self._features_scroll)
+        pages = (self._appearance_scroll, self._tray_scroll,
+                 self._features_scroll)
         pages[1 - index].hide()
         incoming = pages[index]
         # 清掉可能残留的旧效果，避免快速连续切换时叠在新一轮动画上
