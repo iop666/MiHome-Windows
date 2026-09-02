@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+﻿# SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 MiHome-Windows contributors
 <#
 .SYNOPSIS
@@ -53,7 +53,20 @@ if (-not (Test-Path $Pip)) {
 # ============================================================
 # 2. 激活 MSVC 编译环境
 # ============================================================
+# 优先常见 2022 路径，缺失时用 vswhere 探测本机实际安装的 Build Tools
 $Vcvars = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat"
+if (-not (Test-Path $Vcvars)) {
+    $VsWhere = "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe"
+    if (Test-Path $VsWhere) {
+        $VsRoot = & $VsWhere -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath | Select-Object -First 1
+        if ($VsRoot) {
+            $Candidate = Join-Path $VsRoot "VC\Auxiliary\Build\vcvars64.bat"
+            if (Test-Path $Candidate) {
+                $Vcvars = $Candidate
+            }
+        }
+    }
+}
 if (-not (Test-Path $Vcvars)) {
     Write-Host "[ERROR] VS Build Tools 2022 not found" -ForegroundColor Red
     Write-Host "Download: https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022" -ForegroundColor Yellow
