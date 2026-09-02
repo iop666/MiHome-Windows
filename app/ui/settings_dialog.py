@@ -219,9 +219,9 @@ class SettingsDialog(OverlayDialog):
         # ── 界面缩放比例（高 DPI 屏幕微调；更改后重启生效） ──
         self._scale_item, self._scale_label, self._scale_desc, scale_row = self._make_item(
             "界面缩放比例",
-            "调整界面整体元素大小（在系统缩放之上叠加），适用于高 DPI 屏幕使用"
-            "较高系统缩放时觉得界面偏大的情况；可从下拉选档位或直接键入任意"
-            "百分比，更改后需重启应用生效")
+            "软件已按系统 DPI 自动适配（以 96DPI/100% 为基准，缩放越大界面自动越"
+            "小不放大）；此项为在此基础上的个人微调乘数，适用于还想整体放大/缩小"
+            "界面的情况，更改后需重启应用生效")
         self._original_ui_scale = settings_store.get_ui_scale()
         self._pending_ui_scale = self._original_ui_scale
         # 可编辑下拉：预设档位 + 直接键入任意百分比（无级调整，50-200）
@@ -320,6 +320,17 @@ class SettingsDialog(OverlayDialog):
         _sync_switch(self._start_min_toggle)
         start_min_row.addWidget(self._start_min_toggle)
 
+        # ── 托盘设备常显调节（免点击展开） ──
+        self._always_item, self._always_label, self._always_desc, always_row = \
+            self._make_item(
+                "托盘设备常显调节",
+                "托盘快捷窗口的设备行直接展示所选调节项（亮度/色温等），"
+                "无需先点「调节」展开；具体展示哪些项仍可在「托盘管理 → 调节」中勾选增删")
+        self._always_toggle = themed_switch()
+        self._always_toggle.setChecked(settings_store.get_tray_always_expand())
+        _sync_switch(self._always_toggle)
+        always_row.addWidget(self._always_toggle)
+
         # ── 隐藏无可控制功能的设备 ──
         self._hide_item, self._hide_label, self._hide_desc, hide_row = self._make_item(
             "隐藏无可控制功能的设备",
@@ -341,7 +352,8 @@ class SettingsDialog(OverlayDialog):
 
         return self._build_scroll([
             self._autostart_item, self._speaker_item, self._tray_item,
-            self._start_min_item, self._hide_item, self._update_item,
+            self._start_min_item, self._always_item, self._hide_item,
+            self._update_item,
         ])
 
     # ---------- 分类切换 ----------
@@ -394,9 +406,10 @@ class SettingsDialog(OverlayDialog):
     def _apply_styles(self) -> None:
         """主题相关内联样式：构造与 retheme 共用。"""
         panel_card = f"QFrame {{ background: {SiColors.CARD}; border-radius: 10px; }}"
-        for item in (self._tray_item, self._start_min_item, self._fab_item,
-                     self._theme_item, self._autostart_item, self._speaker_item,
-                     self._hide_item, self._scale_item, self._update_item):
+        for item in (self._tray_item, self._start_min_item, self._always_item,
+                     self._fab_item, self._theme_item, self._autostart_item,
+                     self._speaker_item, self._hide_item, self._scale_item,
+                     self._update_item):
             item.setStyleSheet(panel_card)
             # 高度按内容自适应（不固定）：长描述换行后行自然变高，
             # 不会被固定 64px 裁掉；短描述保持紧凑。QScrollArea 负责
@@ -404,14 +417,16 @@ class SettingsDialog(OverlayDialog):
             item.setMinimumHeight(0)
         self._title_label.setStyleSheet(
             f"color: {SiColors.TEXT_PRIMARY}; background: transparent;")
-        for label in (self._tray_label, self._start_min_label, self._fab_label,
-                      self._theme_label, self._autostart_label, self._speaker_label,
+        for label in (self._tray_label, self._start_min_label,
+                      self._always_label, self._fab_label, self._theme_label,
+                      self._autostart_label, self._speaker_label,
                       self._hide_label, self._scale_label, self._update_label):
             label.setStyleSheet(
                 f"color: {SiColors.TEXT_PRIMARY}; background: transparent; font-size: 10pt;")
-        for desc in (self._tray_desc, self._start_min_desc, self._fab_desc,
-                     self._theme_desc, self._autostart_desc, self._speaker_desc,
-                     self._hide_desc, self._scale_desc, self._update_desc):
+        for desc in (self._tray_desc, self._start_min_desc, self._always_desc,
+                     self._fab_desc, self._theme_desc, self._autostart_desc,
+                     self._speaker_desc, self._hide_desc, self._scale_desc,
+                     self._update_desc):
             desc.setStyleSheet(
                 f"color: {SiColors.TEXT_SECONDARY}; background: transparent; font-size: 7pt;")
         self._done_btn.setStyleSheet(
@@ -523,8 +538,10 @@ class SettingsDialog(OverlayDialog):
         # 子开关仅在父开关开启时有效，关闭时强制写入 False
         if self._tray_toggle.isChecked():
             settings_store.set_start_minimized(self._start_min_toggle.isChecked())
+            settings_store.set_tray_always_expand(self._always_toggle.isChecked())
         else:
             settings_store.set_start_minimized(False)
+            settings_store.set_tray_always_expand(False)
         # 默认输出音箱：下拉文案反查 did；无音箱时被灰置为「自动」存空串
         idx = self._speaker_combo.currentIndex()
         if 0 <= idx < len(self._speaker_options):
@@ -601,13 +618,22 @@ class SettingsDialog(OverlayDialog):
             f"color: {label_color}; background: transparent; font-size: 10pt;")
         self._start_min_desc.setStyleSheet(
             f"color: {desc_color}; background: transparent; font-size: 7pt;")
+        # 托盘常显调节同样依赖托盘开关
+        self._always_toggle.setEnabled(enabled)
+        if not enabled:
+            self._always_toggle.setChecked(False)
+        self._always_label.setStyleSheet(
+            f"color: {label_color}; background: transparent; font-size: 10pt;")
+        self._always_desc.setStyleSheet(
+            f"color: {desc_color}; background: transparent; font-size: 7pt;")
         # SiSwitchRefactor 自绘不响应 setEnabled，用透明度灰化开关
-        if enabled:
-            self._start_min_toggle.setGraphicsEffect(None)
-        else:
-            eff = QGraphicsOpacityEffect(self._start_min_toggle)
-            eff.setOpacity(0.35)
-            self._start_min_toggle.setGraphicsEffect(eff)
+        for toggle in (self._start_min_toggle, self._always_toggle):
+            if enabled:
+                toggle.setGraphicsEffect(None)
+            else:
+                eff = QGraphicsOpacityEffect(toggle)
+                eff.setOpacity(0.35)
+                toggle.setGraphicsEffect(eff)
 
     def showEvent(self, event) -> None:  # noqa: N802
         super().showEvent(event)

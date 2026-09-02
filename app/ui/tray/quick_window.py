@@ -264,14 +264,16 @@ class TrayQuickWindow(QDialog):
         self._scroll.setFixedHeight(self._list_view_h)
 
     def _fit_expanded_view(self) -> None:
-        """展开态按内容放大可视区（内容含异步行，显示后测量一次）。"""
+        """竖排态按内容放大可视区（内容含异步行，显示后测量一次）。"""
         import shiboken6
 
-        if not shiboken6.isValid(self) or not self._expanded:
+        if not shiboken6.isValid(self):
+            return
+        if not (self._expanded or settings_store.get_tray_always_expand()):
             return
         self._host.adjustSize()
         want = self._host.sizeHint().height() + 4
-        avail = 460  # 展开态窗口高度上限（其余靠内部滚动）
+        avail = 460  # 竖排窗口高度上限（其余靠内部滚动）
         self._set_list_view_h(min(max(want, self._list_view_h), avail))
         self._sync_tray_height()
 
@@ -530,8 +532,13 @@ class TrayQuickWindow(QDialog):
         self._rows_by_did.clear()
         # 清理已不存在的展开记录
         self._expanded &= {d.did for d in cards}
-        if self._expanded:
-            self._build_vertical(cards)
+        # 常显模式：设置开启时设备行默认全部展开调节，免二次点击
+        always_mode = settings_store.get_tray_always_expand()
+        self._cols_btn.setVisible(not always_mode)  # 常显为竖排，列数切换无意义
+        if always_mode:
+            self._build_vertical(cards, always_mode=True)
+        elif self._expanded:
+            self._build_vertical(cards, always_mode=False)
         else:
             self._set_list_view_h()  # 收起/重开后恢复默认网格可视高度
             self._build_grid(cards)
@@ -539,6 +546,9 @@ class TrayQuickWindow(QDialog):
                        and self._known_power.get(d) is None]
         if online_dids:
             self.refresh_power(online_dids)
+        # 竖排（常显或手动展开）按内容放大可视区
+        if always_mode or self._expanded:
+            QTimer.singleShot(120, self._fit_expanded_view)
 
     def _build_grid(self, cards: list[DeviceInfo]) -> None:
         """紧凑网格视图（原单/双列卡片），行头可点击展开。"""
@@ -555,14 +565,16 @@ class TrayQuickWindow(QDialog):
         self._list_lay.addLayout(self._grid)
         self._list_lay.addStretch(1)
 
-    def _build_vertical(self, cards: list[DeviceInfo]) -> None:
-        """展开态竖排块：头部 + 行内详细调节。"""
+    def _build_vertical(self, cards: list[DeviceInfo],
+                        always_mode: bool = False) -> None:
+        """竖排块：头部 + 行内详细调节（常显时每行都带展开体）。"""
         for dev in cards:
-            block = self._make_block(dev)
+            block = self._make_block(dev, always_mode=always_mode)
             self._list_lay.addWidget(block)
         self._list_lay.addStretch(1)
 
-    def _make_block(self, dev: DeviceInfo) -> QFrame:
+    def _make_block(self, dev: DeviceInfo,
+                    always_mode: bool = False) -> QFrame:
         block = QFrame()
         block.setAttribute(Qt.WA_StyledBackground, True)
         block.setStyleSheet("background: transparent; border: none;")
@@ -570,13 +582,18 @@ class TrayQuickWindow(QDialog):
         vlay.setContentsMargins(0, 0, 0, 0)
         vlay.setSpacing(4)
 
-        # 头部：占满整行宽度
+        # 头部：占满整行宽度；常显模式下隐藏展开/收起钮
         avail = max(96, self.width() - 132)
-        head = self._make_row_header(dev, avail=avail, expandable=True)
+        head = self._make_row_header(dev, avail=avail,
+                                     always_mode=always_mode)
         vlay.addWidget(head)
 
         # 展开体：按托盘自选调节项渲染（异步取 spec）
-        if dev.did in self._expanded:
+        manual_open = (not always_mode and dev.did in self._expanded)
+        explicitly_none = (tray_ops_store.selected(dev.did) == [])
+        if always_mode or manual_open:
+            if always_mode and explicitly_none:
+                return block  # 用户明确不提供调节：只保留头部
             body = QWidget()
             body.setStyleSheet("background: transparent;")
             blay = QVBoxLayout(body)
@@ -586,7 +603,15 @@ class TrayQuickWindow(QDialog):
             popup = QuickOpsPopup(
                 self._service, self._jobs, dev, parent=body,
                 inline=True, show_header=False, op_names=names)
-            popup.empty.connect(lambda d=dev.did: self._on_inline_empty(d))
+            if always_mode:
+                # 常显模式：无可用项时安静移除该行展开体，不打断整体
+                def _empty_body(b=body):
+                    b.hide()
+                    b.deleteLater()
+                popup.empty.connect(_empty_body)
+            else:
+                popup.empty.connect(
+                    lambda d=dev.did: self._on_inline_empty(d))
             blay.addWidget(popup)
             vlay.addWidget(body)
         return block
@@ -646,7 +671,7 @@ class TrayQuickWindow(QDialog):
         label.setToolTip(text)
 
     def _make_row_header(self, dev: DeviceInfo, avail: int | None = None,
-                         expandable: bool = False) -> QFrame:
+                         always_mode: bool = False) -> QFrame:
         from PySide6.QtWidgets import QSizePolicy
 
         row = QFrame()
@@ -665,7 +690,8 @@ class TrayQuickWindow(QDialog):
 
         known = self._known_power.get(dev.did)
         if avail is None:
-            avail = self._card_text_width(known is not None, extra_expand=True)
+            avail = self._card_text_width(known is not None,
+                                          extra_expand=not always_mode)
 
         text_col = QVBoxLayout()
         text_col.setSpacing(2)
@@ -695,24 +721,25 @@ class TrayQuickWindow(QDialog):
         text_col.addWidget(sub)
         lay.addLayout(text_col, stretch=1)
 
-        # 展开（调节）按钮：有自选记录（含未自选=自动默认）都可点
-        is_expanded = dev.did in self._expanded
-        chev = QPushButton()
-        chev.setFixedSize(22, 22)
-        chev.setCursor(Qt.PointingHandCursor)
-        chev.setIconSize(QSize(16, 16))
-        chev.setToolTip("收起调节" if is_expanded else "调节")
-        chev.setIcon(qta.icon('mdi.chevron-up' if is_expanded
-                              else 'mdi.tune-variant',
-                              color=SiColors.TEXT_SECONDARY))
-        chev.setStyleSheet(
-            f"QPushButton {{ background: {SiColors.SURFACE}; border: none;"
-            f" border-radius: 11px; }}"
-            f"QPushButton:hover {{ background: {SiColors.BTN_HOVER}; }}")
-        chev.setAutoDefault(False)
-        chev.setDefault(False)
-        chev.clicked.connect(lambda _, d=dev.did: self._toggle_expand(d))
-        lay.addWidget(chev)
+        # 展开（调节）按钮：常显模式下无需展开钮（调节恒在行内）
+        if not always_mode:
+            is_expanded = dev.did in self._expanded
+            chev = QPushButton()
+            chev.setFixedSize(22, 22)
+            chev.setCursor(Qt.PointingHandCursor)
+            chev.setIconSize(QSize(16, 16))
+            chev.setToolTip("收起调节" if is_expanded else "调节")
+            chev.setIcon(qta.icon('mdi.chevron-up' if is_expanded
+                                  else 'mdi.tune-variant',
+                                  color=SiColors.TEXT_SECONDARY))
+            chev.setStyleSheet(
+                f"QPushButton {{ background: {SiColors.SURFACE}; border: none;"
+                f" border-radius: 11px; }}"
+                f"QPushButton:hover {{ background: {SiColors.BTN_HOVER}; }}")
+            chev.setAutoDefault(False)
+            chev.setDefault(False)
+            chev.clicked.connect(lambda _, d=dev.did: self._toggle_expand(d))
+            lay.addWidget(chev)
 
         btn = None
         if known is not None:

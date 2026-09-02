@@ -23,8 +23,9 @@ _DEFAULTS: dict = {
     "theme": "system",  # system / light / dark
     "hide_no_func_devices": False,
     "default_speaker_did": "",  # 小爱指令默认输出音箱；空串=自动（第一个在线）
-    "ui_scale": 1.0,    # 界面缩放个人微调乘数（叠加在软件基准缩放之上），需重启生效
+    "ui_scale": 1.0,    # 界面缩放个人微调乘数（以 96DPI 为基准），需重启生效
     "tray_columns": 2,  # 托盘快捷窗口卡片列数：1 或 2
+    "tray_always_expand": False,  # 托盘设备行常显调节（免点开），调节项仍可在托盘管理配置
     "check_update_enabled": True,  # 启动时自动检查 GitHub 新版本
 }
 
@@ -114,6 +115,17 @@ def get_tray_columns() -> int:
 def set_tray_columns(value: int) -> None:
     raw = _read_raw()
     raw["tray_columns"] = int(value) if int(value) in (1, 2) else 2
+    _write_raw(raw)
+
+
+def get_tray_always_expand() -> bool:
+    """托盘设备行是否常显调节（免二次点击展开），默认关闭。"""
+    return bool(_read_raw().get("tray_always_expand", False))
+
+
+def set_tray_always_expand(value: bool) -> None:
+    raw = _read_raw()
+    raw["tray_always_expand"] = bool(value)
     _write_raw(raw)
 
 

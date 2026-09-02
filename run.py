@@ -36,21 +36,39 @@ def _set_console_visible(visible: bool) -> None:
         pass
 
 
-# 基准界面缩放：整体 UI 在系统缩放之上再乘 1.25，作为软件的默认
-# 观感基线（即此前系统里 QT_SCALE_FACTOR=1.25 时的样子）；设置页的
-# 「界面缩放比例」是在此基准之上的个人微调乘数（默认 100%）。
+# 基准界面缩放：软件观感基线 1.25（以系统 96DPI/100% 为基准）。
+# 系统缩放越高，QT_SCALE_FACTOR 相应除以 DPR，把「净观感」拉回同一
+# 基线：高 DPI 屏不会再被「系统缩放 × 软件 1.25」叠成巨无霸。
+# 设置页的「界面缩放比例」是叠加在这条基线之上的个人微调（默认 100%）。
 _BASE_UI_SCALE = 1.25
 
 
+def _system_dpi_scale() -> float:
+    """读取 Windows 系统主屏 DPI 缩放（144/96 = 1.5）；失败按 100%。"""
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            dpi = ctypes.windll.user32.GetDpiForSystem()
+            if dpi and dpi >= 72:
+                return dpi / 96.0
+        except Exception:
+            pass
+    return 1.0
+
+
 def _apply_ui_scale_env() -> None:
-    """按「基准 1.25 × 设置乘数」写入 QT_SCALE_FACTOR。
+    """写入 QT_SCALE_FACTOR = 基准 1.25 × 设置乘数 ÷ 系统 DPR。
 
     必须在 QApplication 创建之前调用；Qt 只在初始化时读取该变量，
     更改后需重启生效。始终覆写：系统环境里可能残留外部设置的值，
-    若不覆盖会与基准叠加导致界面异常巨大。
+    若不覆盖会与基准叠加导致界面异常巨大。数值被钳制在
+    [0.4, 3.0]，避免极端 DPI 或用户误设把界面放得过大/过小。
     """
     from app.core.settings_store import get_ui_scale
-    os.environ["QT_SCALE_FACTOR"] = f"{_BASE_UI_SCALE * get_ui_scale():g}"
+    dpr = _system_dpi_scale()
+    factor = _BASE_UI_SCALE * get_ui_scale() / dpr
+    factor = max(0.4, min(3.0, factor))
+    os.environ["QT_SCALE_FACTOR"] = f"{factor:g}"
 
 
 def main() -> int:
