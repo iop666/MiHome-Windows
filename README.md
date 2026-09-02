@@ -1,24 +1,77 @@
-# MiHome-Windows
+# MiHome-Windows（本地修改版）
 
-米家设备的 Windows 桌面控制端。基于 [mijiaAPI](https://github.com/Do1e/mijia-api)
-构建图形界面，扫码登录后即可在本地窗口中查看和控制家里的全部米家设备。
+米家设备的 Windows 桌面控制端。本仓库是
+[huanyuejue/MiHome-Windows](https://github.com/huanyuejue/MiHome-Windows)
+的**二次开发分支（fork 定制版）**：在原版能力全部保留的基础上，针对日常
+使用体验做了一批界面调整与功能扩展（桌面小组件、托盘增强、跨界面状态同步、
+米家浅色风主界面等），供自用与交流。
 
-> **注意：当前项目仍处于早期版本。** 作者个人米家设备有限，无法对各类设备做针对性适配测试，因此 UI 和操作逻辑的完善度不算很高。不过基础使用（扫码登录、设备列表与常用控制、托盘、小爱语音等）已无大碍，但需适配更多设备功能则需要社区支持了。
+原版：https://github.com/huanyuejue/MiHome-Windows ｜ 本分支（作者 iop666）
 
-## 功能
+> **注意：当前项目仍处于早期版本。** 作者个人米家设备有限，无法对各类设备
+> 做针对性适配测试，因此 UI 和操作逻辑的完善度不算很高。不过基础使用
+> （扫码登录、设备列表与常用控制、托盘、小组件、小爱语音等）已无大碍，
+> 需适配更多设备功能则依赖社区支持。
+
+## 与原版的差异
+
+本 fork 在原版基础上做了以下修改与新增（以提交记录为准，按功能归类）：
+
+### 新增：桌面小组件
+- 把单个或多个设备「固定到桌面」的常驻小组件：只显示设备控件、无标题栏；
+- 多设备可合并在一个小组件里，每台设备可**自选展开哪些调节控件**（亮度/
+  色温/模式等），全部不选则只留开关行；
+- 小组件可单独固定**浅色 / 深色外观**（或跟随应用主题），也可随时
+  **隐藏/显示**（隐藏不删除配置）；
+- 支持 1% 步进缩放、锁定/解锁、置顶、背景透明度（0% 时边框也跟随消失）；
+- 开关状态与调节值随主窗口/托盘/详情页**实时同步**，并周期回读云端真实值。
+
+### 新增/调整：系统托盘
+- 托盘快捷窗口支持**单列/双列卡片切换**，双列时隐藏行内调节按钮（切单列
+  再展开调节）；
+- 「托盘设备常显调节」可选：开启后设备行直接常显调节项（默认关闭，开启会
+  隐藏单/双列切换钮）；
+- 托盘展开行内的调节值、开关状态与主界面/详情页/桌面小组件**跨界面实时
+  同步**；
+- 托盘图标颜色可选（白色默认 / 黑色 / 品牌绿），切换即时生效；
+- 托盘右键菜单新增「重启应用」；
+- 修复托盘重建时新旧行残留重叠、内容少时窗口被硬撑高等布局问题。
+
+### 新增/调整：主界面与主题
+- 浅色模式采用「米家 App 风」：灰画布 + 白卡片 + 米家绿主题色；
+- 设备卡片支持**产品图**（联网拉取一次后本地缓存，可在设置关闭）与
+  **卡片宽度**档位（176–300，即时生效）；
+- 设备开关状态、温湿度读数随轮询与各入口改动保持同步；
+- 设置页按「主题界面 / 托盘设置 / 应用功能 / 小组件」四分类整理；
+- 关于页标注本地修改版及上游致谢。
+
+### 保留的原版功能
+扫码登录、家庭/房间分组的设备列表、按 spec 自动生成的详情工作台（开关/
+滑块/下拉/动作执行）、快捷操作、米家场景、小爱语音悬浮球与音频快捷控制、
+深浅色主题（深色对齐 miloco 视觉）、50%–200% 界面缩放、开机自启动、
+GitHub Releases 新版本检测、本地数据缓存等。
+
+## 功能一览（本版）
 
 - **扫码登录**：米家 APP 扫二维码，登录凭据与上游依赖的 CLI 共用
 - **设备列表**：按家庭、房间分组，实时显示在线状态，支持隐藏无功能设备
-- **设备控制**：根据设备 spec 元数据自动生成控件——布尔属性映射开关、数值属性映射滑块（自动套用范围与步长）、枚举属性映射下拉框
-- **动作执行**：设备支持的动作渲染为按钮，执行前二次确认
-- **系统托盘**：最小化到托盘，支持快捷设备控制、小爱音响快捷控制、小爱语音指令，托盘快捷窗口支持单列/双列卡片切换
-- **主题配色**：深色 / 浅色 / 跟随系统（设置中切换，米家绿主题色两种模式一致）；托盘图标自动跟随 Windows 任务栏深浅色
+- **设备控制**：根据设备 spec 元数据自动生成控件——布尔属性映射开关、数值
+  属性映射滑块（自动套用范围与步长）、枚举属性映射下拉框
+- **动作执行**：设备支持的动作渲染为按钮，执行前二次确认（参数化动作可填参）
+- **系统托盘**：最小化到托盘，快捷开关 + 行内调节、小爱音响快捷控制、
+  单列/双列切换、常显调节可选
+- **桌面小组件**：设备控件常驻桌面，自选控件、单独明暗外观、隐藏/显示
+- **主题配色**：深色 / 浅色 / 跟随系统（米家绿主题色两种模式一致）；小组件
+  可单独固定明暗
 - **界面缩放**：50%–200% 无级调节（叠加在系统缩放之上），需重启生效
 - **开机自启动**：可选，写入当前用户注册表（HKCU Run）
-- **小爱语音**：主界面右下角悬浮按钮，输入文字指令发送给在线小爱音箱，可指定默认输出音箱
-- **版本检测**：启动时自动检查 GitHub Releases 新版本，也可在关于页手动检测
-- **本地缓存**：设置、托盘/工作台配置与设备缓存存放在用户数据目录（详见下方路径说明）
-- **上游可升级**：mijiaAPI 仅作为 PyPI 依赖锁定在 `>=4.2,<5`，升级后跑 `python -m tests.smoke_test` 即可确认兼容性
+- **小爱语音**：主界面右下角悬浮按钮 / 托盘语音条，文字指令发送给在线
+  小爱音箱，可指定默认输出音箱
+- **版本检测**：启动时检查上游 GitHub Releases 新版本，也可在关于页手动检测
+- **本地缓存**：设置、托盘/小组件/工作台配置与设备缓存存放于用户数据目录
+  （见下方路径说明）
+- **上游可升级**：mijiaAPI 仅作为 PyPI 依赖锁定在 `>=4.2,<5`，升级后跑
+  `python -m tests.feature_smoke` 即可确认兼容性
 
 ## 运行
 
@@ -27,7 +80,7 @@
 ### 一键运行
 
 ```powershell
-git clone https://github.com/huanyuejue/MiHome-Windows.git
+git clone https://github.com/iop666/MiHome-Windows.git
 cd MiHome-Windows
 
 # 双击 start.bat，或命令行执行：
@@ -39,7 +92,7 @@ start.bat
 ### 手动运行
 
 ```powershell
-git clone https://github.com/huanyuejue/MiHome-Windows.git
+git clone https://github.com/iop666/MiHome-Windows.git
 cd MiHome-Windows
 
 python -m venv .venv
@@ -61,8 +114,11 @@ python -m venv .venv
 |------|------|
 | `settings.json` | 应用设置（主题、缩放、托盘、自启动等） |
 | `tray.json` | 托盘快捷控制面板的设备列表配置 |
+| `tray_ops.json` | 托盘每台设备行内展开的调节项自选 |
 | `workbench.json` | 工作台（设备详情页）的自定义布局 |
+| `widgets.json` | 桌面小组件配置（设备、位置、缩放、外观等） |
 | `devices_cache.json` | 设备列表与状态缓存，启动时优先从缓存加载以加快首屏显示 |
+| `.icons/` | 设备产品图缓存（按型号命名，联网拉取一次后本地复用） |
 
 > 路径中的 `%LOCALAPPDATA%` 通常为 `C:\Users\<用户名>\AppData\Local`。
 > 旧版曾写在 exe 同目录，首次启动会自动迁移至此。
@@ -81,7 +137,11 @@ python -m venv .venv
 
 ## 构建可执行文件
 
-项目使用 **[Nuitka](https://nuitka.net/)** 将 Python 源码编译打包为原生 Windows 可执行文件（standalone 模式：把 Python 解释器、全部依赖与资源文件整合进一个免安装目录，最终产出 `dist\MiHome-Windows.exe`）。Nuitka 是真编译器——把代码编译为 C 再编译为机器码，而非 PyInstaller 式的"打包字节码"，这也是需要 VS Build Tools 的原因。
+项目使用 **[Nuitka](https://nuitka.net/)** 将 Python 源码编译打包为原生
+Windows 可执行文件（standalone 模式：把 Python 解释器、全部依赖与资源文件
+整合进一个免安装目录，最终产出 `dist\MiHome-Windows.exe`）。Nuitka 是真编译器
+——把代码编译为 C 再编译为机器码，而非 PyInstaller 式的"打包字节码"，
+这也是需要 VS Build Tools 的原因。
 
 ### 前置条件
 
@@ -97,16 +157,18 @@ python -m venv .venv
 ### 一键构建
 
 ```powershell
-git clone https://github.com/huanyuejue/MiHome-Windows.git
+git clone https://github.com/iop666/MiHome-Windows.git
 cd MiHome-Windows
 
 # 双击 build_msvc.bat 或运行：
 .\build.ps1
 ```
 
-脚本自动完成：创建 venv → 安装依赖（含 Nuitka 本体）→ 激活 MSVC 编译环境 → Nuitka 编译 → 输出到 `dist/MiHome-Windows.exe`。
+脚本自动完成：创建 venv → 安装依赖（含 Nuitka 本体）→ 激活 MSVC 编译环境 →
+Nuitka 编译 → 输出到 `dist/MiHome-Windows.exe`。
 
-构建参数（打包资源清单、图标、排除项等）集中维护在 `build.ps1` 的 `$NuitkaArgs`；`build_msvc.bat` 只是转发到它的双击入口。
+构建参数（打包资源清单、图标、排除项等）集中维护在 `build.ps1` 的
+`$NuitkaArgs`；`build_msvc.bat` 只是转发到它的双击入口。
 
 首次构建耗时较长（创建 venv + 下载依赖 + Nuitka 编译，通常 5–15 分钟，视机器而定）
 
@@ -122,25 +184,33 @@ app/
 │   ├── cache.py                # 设备缓存
 │   ├── settings_store.py       # 应用设置持久化（含开机自启动注册表）
 │   ├── tray_store.py           # 托盘配置持久化
+│   ├── tray_ops_store.py       # 托盘行内调节项自选持久化
+│   ├── widget_store.py         # 桌面小组件配置持久化
 │   ├── workbench_store.py      # 工作台配置持久化
+│   ├── icons.py                # 设备产品图磁盘缓存
+│   ├── safety.py               # 安全模式（MIWU_SAFE_DEVICE）守卫
 │   ├── update_checker.py       # GitHub Releases 新版本检查（后台线程 + 信号）
 │   └── restart.py              # 应用自重启（缩放等设置需重启生效时一键重启）
 ├── ui/                         # 界面层
 │   ├── main_window.py          # 主窗口（无边框标题栏）
 │   ├── tray/                   # 系统托盘
-│   │   ├── quick_window.py     #   快捷控制面板（单列/双列卡片）
+│   │   ├── quick_window.py     #   快捷控制面板（单列/双列、常显、行内调节）
 │   │   ├── audio_bar.py        #   音响控制栏
-│   │   ├── controller.py       #   托盘控制器
+│   │   ├── controller.py       #   托盘控制器（图标配色、右键菜单含重启）
 │   │   └── manager_dialog.py   #   托盘设备管理对话框
-│   ├── device_card.py          # 设备卡片组件
+│   ├── desktop_widget.py       # 桌面小组件窗口（无标题栏、独立明暗外观）
+│   ├── widget_manager.py       # 小组件实例管理（增删改查/同步/显隐）
+│   ├── widget_dialogs.py       # 小组件设备选择 / 控件自选对话框
+│   ├── quick_ops.py            # 快捷调节弹层组件（卡片/托盘行/小组件复用）
+│   ├── device_card.py          # 设备卡片组件（产品图、开关）
 │   ├── device_dialog.py        # 设备详情对话框
 │   ├── workbench_panel.py      # 工作台面板（属性/动作）
 │   ├── workbench_item.py       # 工作台属性/动作项
 │   ├── prop_widgets.py         # 属性控件（开关、滑块、下拉框）
 │   ├── power_button.py         # 三态电源按钮（卡片/托盘/详情共用）
 │   ├── overlay_dialog.py       # 遮罩对话框基类（详情/设置/抽屉共用）
-│   ├── about_dialog.py         # 关于对话框（版本信息、手动检测更新）
-│   ├── settings_dialog.py      # 设置对话框（主题界面/应用功能双分类）
+│   ├── about_dialog.py         # 关于对话框（修改版说明、上游致谢、检测更新）
+│   ├── settings_dialog.py      # 设置对话框（主题界面/托盘设置/应用功能/小组件）
 │   ├── voice_fab.py            # 语音悬浮球
 │   ├── toast.py                # 轻量通知浮层
 │   ├── update_flow.py          # 版本检查界面流程（弹框提示/静默反馈）
@@ -151,7 +221,7 @@ app/
 │   ├── theme_service.py        # 主题编排（跟随系统/浅色/深色）
 │   ├── restart.py              # 应用自重启
 │   ├── icon.ico / icon.png     # 应用图标
-│   └── tray_icon.png / tray_icon_light.png  # 托盘图标
+│   └── tray_icon*.png          # 托盘图标（白/黑/品牌绿）
 ├── siui/                       # 内置 SiliconUI 组件库（GPL-3.0）
 │   ├── components/             # UI 组件
 │   ├── core/                   # 核心工具
@@ -159,7 +229,7 @@ app/
 └── __init__.py                 # 版本号 + 工具函数
 
 tests/
-├── smoke_test.py               # 上游升级后的接口兼容性自检
+├── feature_smoke.py            # 新增能力的离屏冒烟测试（守卫/工作台/快捷面板/小组件）
 └── theme_test.py               # 主题切换回归（离屏像素断言）
 
 run.py                          # 程序入口
@@ -183,14 +253,16 @@ LICENSE                         # GPL-3.0 许可证
 
 ## 开源许可
 
-本项目基于 [GPL-3.0](LICENSE) 或更高版本发布。
+本项目基于 [GPL-3.0](LICENSE) 或更高版本发布，允许在遵守协议的前提下自由
+使用、修改与再分发。
 
-### 第三方组件
+### 上游与第三方组件
 
-本程序使用了以下 GPL-3.0 协议的开源组件，在此向原作者致谢：
-
+- [huanyuejue/MiHome-Windows](https://github.com/huanyuejue/MiHome-Windows)
+  - 本 fork 的原版项目，界面与交互的大部分实现来源于此，向原作者致谢
 - [mijia-api](https://github.com/Do1e/mijia-api) - 米家 API 封装
-- [PySide6-SiliconUI](https://github.com/H1DDENADM1N/PySide6-SiliconUI) - UI 组件库（已内置至 `app/siui/`）
+- [PySide6-SiliconUI](https://github.com/H1DDENADM1N/PySide6-SiliconUI) -
+  UI 组件库（已内置至 `app/siui/`）
 
 对本项目代码的使用、修改与分发同样须遵循 GPL-3.0。
 
