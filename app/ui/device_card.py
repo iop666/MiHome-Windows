@@ -41,7 +41,9 @@ class DeviceCard(SiRowCard):
     quick_requested = Signal(str)  # did（卡片快捷操作弹层）
     open_requested = Signal(str)  # did
 
-    def __init__(self, device: DeviceInfo, parent=None):
+    def __init__(self, device: DeviceInfo, parent=None,
+                 width: int = _CARD_FIXED_WIDTH,
+                 height: int = _CARD_FIXED_HEIGHT):
         super().__init__(parent, self.LeftToRight)
         self.device = device
         self._busy = False
@@ -52,8 +54,8 @@ class DeviceCard(SiRowCard):
             SiColors.OFFLINE_CARD if not self._online else SiColors.CARD)
         self.style_data.border_radius = 14.0
         self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        # 固定尺寸：宽度固定，窗口缩放仅改变列数，卡片本身不被拉伸
-        self.setFixedSize(_CARD_FIXED_WIDTH, _CARD_FIXED_HEIGHT)
+        # 固定尺寸：宽度固定（可随设置加宽），窗口缩放仅改变列数
+        self.setFixedSize(width, height)
         self.setCursor(Qt.PointingHandCursor)
         self.muteStretchWidget()
 

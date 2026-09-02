@@ -123,6 +123,9 @@ class MainWindow(QMainWindow):
         self._card_pix: dict = {}
         self._icon_pending: set[str] = set()
         self._icon_primed = False
+        from app.core.settings_store import get_card_width, get_show_device_icons
+        self._card_w = get_card_width()
+        self._show_icons = get_show_device_icons()
         # 刷新防重入：请求在途时忽略再次点击
         self._loading_devices = False
         # 启动自动检查更新每次进程只做一次，避免 start 被重复触发
@@ -610,6 +613,11 @@ class MainWindow(QMainWindow):
         self._refresh_metrics()
         self._update_voice_fab()
         self._update_tray_devices()
+        if self._widget_mgr is not None:
+            try:
+                self._widget_mgr.sync_device_meta(devices)
+            except Exception:
+                pass
         # 产品图异步就绪后回填（缓存命中则立即生效）
         QTimer.singleShot(300, self._prime_card_icons)
 
@@ -788,7 +796,8 @@ class MainWindow(QMainWindow):
             dlg.activateWindow()
             return
         dlg = SettingsDialog(self, devices=self._all_devices,
-                             widget_manager=self._widget_mgr)
+                             widget_manager=self._widget_mgr,
+                             service=self._service, jobs=self._jobs)
         self._settings_dialog = dlg
         dlg.exec()
         scale_changed = getattr(dlg, "_scale_changed", False)
@@ -819,6 +828,25 @@ class MainWindow(QMainWindow):
             self._rebuild_grid()
             self._update_count_label()
             self._update_tray_devices()
+        # 产品图开关 / 主卡片宽度：即时生效
+        from app.core.settings_store import get_card_width, get_show_device_icons
+        changed_view = False
+        new_icons = get_show_device_icons()
+        if new_icons != self._show_icons:
+            self._show_icons = new_icons
+            if not new_icons:
+                self._card_pix.clear()
+            changed_view = True
+        new_w = get_card_width()
+        if new_w != self._card_w:
+            self._card_w = new_w
+            changed_view = True
+        if changed_view:
+            self._rebuild_grid()
+            if self._show_icons and not self._icon_primed:
+                QTimer.singleShot(300, self._prime_card_icons)
+            else:
+                self._reapply_cached_icons()
         # 同步小爱悬浮按钮显隐
         self._update_voice_fab()
 
@@ -1125,7 +1153,7 @@ class MainWindow(QMainWindow):
         self._grid_columns = cols
         rows = (len(visible) + cols - 1) // cols
         for index, device in enumerate(visible):
-            card = DeviceCard(device)
+            card = DeviceCard(device, width=self._card_w)
             # 记忆里的开关状态与读数立即回显，重建卡片不丢状态
             known = self._known_power.get(device.did)
             if known is not None:
@@ -1149,14 +1177,14 @@ class MainWindow(QMainWindow):
                 self._apply_card_icon(model, pix)
 
     def _columns_for_width(self, width: int) -> int:
-        # 固定卡片宽度，列数随可视宽度动态计算，避免缩窄时卡片被裁切
-        from app.ui.device_card import _CARD_FIXED_WIDTH
+        # 卡片宽度随设置可加宽，列数随可视宽度动态计算
+        fixed = self._card_w
         spacing = 14
         right_margin = 12
         eff = max(0, width - right_margin)
         if eff <= 0:
             return 1
-        cols = (eff + spacing) // (_CARD_FIXED_WIDTH + spacing)
+        cols = (eff + spacing) // (fixed + spacing)
         # 不设单排上限——宽屏下应自然补列而不是拉开卡片间距
         return max(1, cols)
 
@@ -1293,6 +1321,8 @@ class MainWindow(QMainWindow):
         """为可见设备拉产品图：磁盘命中立即注入，否则后台取一次。"""
         from app.core import icons as icon_cache
 
+        if not self._show_icons:
+            return
         if self._icon_primed:
             return
         self._icon_primed = True
@@ -1335,9 +1365,18 @@ class MainWindow(QMainWindow):
                     self._apply_card_icon(model, pix)
 
     def _apply_card_icon(self, model: str, pixmap) -> None:
+        if not self._show_icons:
+            return
         for card in self._cards.values():
             if card.device.model == model:
                 card.set_icon(pixmap)
+
+    def _reapply_cached_icons(self) -> None:
+        if not self._show_icons:
+            return
+        for model, pix in self._card_pix.items():
+            if pix is not None:
+                self._apply_card_icon(model, pix)
 
     # ---------- 详情 ----------
 

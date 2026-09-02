@@ -60,10 +60,29 @@ def _normalize(w) -> dict | None:
         bg_alpha = int(w.get("bg_alpha", 90))
     except (TypeError, ValueError):
         bg_alpha = 90
+    # 设备显示名等元信息与每设备控件自选（否则重启后名称/选择丢失）
+    devices_raw = w.get("devices")
+    devices = {}
+    if isinstance(devices_raw, dict):
+        for k, v in devices_raw.items():
+            if isinstance(v, dict):
+                devices[str(k)] = {
+                    "name": str(v.get("name") or ""),
+                    "room": str(v.get("room") or ""),
+                    "online": bool(v.get("online", True)),
+                }
+    ops_raw = w.get("device_ops")
+    device_ops = {}
+    if isinstance(ops_raw, dict):
+        for k, v in ops_raw.items():
+            if isinstance(v, list):
+                device_ops[str(k)] = [str(n) for n in v]
     return {
         "id": w["id"],
         "dids": dids,
         "title": str(w.get("title") or ""),
+        "devices": devices,
+        "device_ops": device_ops,
         "x": _int_or(w.get("x"), 120),
         "y": _int_or(w.get("y"), 120),
         "scale": min(max(scale, _UI_MIN_SCALE), _UI_MAX_SCALE),

@@ -22,6 +22,8 @@ _DEFAULTS: dict = {
     "voice_fab_enabled": True,
     "theme": "system",  # system / light / dark
     "hide_no_func_devices": False,
+    "show_device_icons": True,  # 主界面设备卡片是否显示产品图
+    "card_width": 202,          # 主界面设备卡片宽度（图标占用时建议加宽）
     "default_speaker_did": "",  # 小爱指令默认输出音箱；空串=自动（第一个在线）
     "ui_scale": 1.0,    # 界面缩放个人微调乘数（以 96DPI 为基准），需重启生效
     "tray_columns": 2,  # 托盘快捷窗口卡片列数：1 或 2
@@ -101,6 +103,35 @@ def get_hide_no_func_devices() -> bool:
 def set_hide_no_func_devices(value: bool) -> None:
     raw = _read_raw()
     raw["hide_no_func_devices"] = bool(value)
+    _write_raw(raw)
+
+
+def get_show_device_icons() -> bool:
+    """主界面设备卡片是否显示产品图，默认开启。"""
+    return bool(_read_raw().get("show_device_icons", True))
+
+
+def set_show_device_icons(value: bool) -> None:
+    raw = _read_raw()
+    raw["show_device_icons"] = bool(value)
+    _write_raw(raw)
+
+
+CARD_WIDTHS = (176, 202, 232, 262, 300)
+
+
+def get_card_width() -> int:
+    """主界面设备卡片宽度（产品图开启时建议 ≥232）。"""
+    try:
+        value = int(_read_raw().get("card_width", 202))
+    except (TypeError, ValueError):
+        return 202
+    return value if value in CARD_WIDTHS else 202
+
+
+def set_card_width(value: int) -> None:
+    raw = _read_raw()
+    raw["card_width"] = value if value in CARD_WIDTHS else 202
     _write_raw(raw)
 
 

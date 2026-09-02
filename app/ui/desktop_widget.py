@@ -87,20 +87,22 @@ class _HandleBar(QFrame):
             f"color: {SiColors.TEXT_PRIMARY}; background: transparent;")
         lay.addWidget(self.title_lab)
         lay.addStretch(1)
-        if locked:
-            lock = QLabel("🔒")
-            lock.setToolTip("已锁定位置：在「设置 → 桌面小组件」解锁后可拖动")
-            lock.setStyleSheet("background: transparent;")
-            lay.addWidget(lock)
         self.installEventFilter(self)
 
     def set_title(self, title: str) -> None:
         self.title_lab.setText(title)
 
     def eventFilter(self, obj, event) -> bool:  # noqa: N802
-        if self._owner._cfg.get("locked", True):
-            return super().eventFilter(obj, event)
         et = event.type()
+        if self._owner._cfg.get("locked", True):
+            # 锁定时点击手柄不移动，明确提示去设置解锁
+            if et == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
+                from app.ui.toast import Toast
+                Toast.info(self._owner,
+                           "小组件已锁定位置：请在「设置 → 桌面小组件」解锁后移动",
+                           2200)
+                return True
+            return super().eventFilter(obj, event)
         if et == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
             self._press = (event.globalPosition().toPoint()
                            - self._owner.frameGeometry().topLeft())
@@ -113,42 +115,6 @@ class _HandleBar(QFrame):
             if self._press is not None:
                 self._press = None
                 self._owner._notify_moved()
-            return True
-        return super().eventFilter(obj, event)
-
-
-class _ScaleGrip(QFrame):
-    """右下角缩放手柄：上下拖动 = 连续调缩放（长度随内容同步）。"""
-
-    def __init__(self, owner: "DesktopWidget"):
-        super().__init__()
-        self._owner = owner
-        self._base = None
-        self.setFixedSize(20, 16)
-        self.setCursor(Qt.CursorShape.SizeFDiagCursor)
-        lab = QLabel("↘")
-        lab.setStyleSheet(
-            f"color: {SiColors.TEXT_MUTED}; background: transparent;"
-            f" font-size: 11pt;")
-        lay = QHBoxLayout(self)
-        lay.setContentsMargins(0, 0, 0, 0)
-        lay.addWidget(lab, alignment=Qt.AlignRight | Qt.AlignBottom)
-        self.installEventFilter(self)
-
-    def eventFilter(self, obj, event) -> bool:  # noqa: N802
-        et = event.type()
-        if et == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
-            self._base = (self._owner._cfg.get("scale", 100),
-                          event.globalPosition().toPoint().y())
-            return True
-        if et == QEvent.MouseMove and self._base is not None \
-                and event.buttons() & Qt.LeftButton:
-            base_scale, base_y = self._base
-            delta = (event.globalPosition().toPoint().y() - base_y) // 2
-            self._owner._set_scale(max(50, min(200, base_scale + delta)))
-            return True
-        if et == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
-            self._base = None
             return True
         return super().eventFilter(obj, event)
 
@@ -219,25 +185,21 @@ class DesktopWidget(QWidget):
             block = self._build_device_block(did, devices.get(did))
             if block is not None:
                 lay.addWidget(block)
-        # 右下角缩放手柄
-        foot = QHBoxLayout()
-        foot.addStretch(1)
-        foot.addWidget(_ScaleGrip(self))
-        lay.addLayout(foot)
 
         self._paint_bg()
         self._proxy = self._scene.addWidget(outer)
         QTimer.singleShot(0, self._refit)
 
     def _paint_bg(self) -> None:
-        """背景 = 圆角 + 半透明白底；控件与文字保持不透明。"""
+        """背景与外围边框透明度一致（0% 时只剩不透明控件浮于桌面）。"""
         if self._card is None:
             return
-        alpha = max(8, int(self._cfg.get("bg_alpha", 90)))
+        alpha = max(0, int(self._cfg.get("bg_alpha", 90)))
         rgba = _hex_rgba(SiColors.CARD, alpha)
+        border = _hex_rgba(SiColors.LINE, max(alpha, 1))
         self._card.setStyleSheet(
             f"QFrame#widgetCard {{ background: {rgba};"
-            f" border: 1px solid {SiColors.LINE};"
+            f" border: 1px solid {border};"
             f" border-radius: 16px; }}")
 
     def _build_device_block(self, did: str, dev):
@@ -253,9 +215,16 @@ class DesktopWidget(QWidget):
         host.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         lay = QVBoxLayout(host)
         lay.setContentsMargins(6, 4, 6, 0)
-        lay.setSpacing(2)
+        lay.setSpacing(4)
 
-        head = QHBoxLayout()
+        # 「开关」行与下方调节模块同款式（SURFACE 圆角功能卡）
+        head_card = QFrame()
+        head_card.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        head_card.setStyleSheet(
+            f"QFrame {{ background: {SiColors.SURFACE};"
+            f" border: none; border-radius: 10px; }}")
+        head = QHBoxLayout(head_card)
+        head.setContentsMargins(10, 7, 10, 7)
         head.setSpacing(6)
         name_lab = QLabel(f"{name}  ·  {room}".rstrip(" ·"))
         name_lab.setFont(
@@ -276,11 +245,15 @@ class DesktopWidget(QWidget):
             )
         btn.clicked.connect(_toggle)
         head.addWidget(btn)
-        lay.addLayout(head)
+        lay.addWidget(head_card)
 
+        # 控件自选：cfg.device_ops[did] 为空列表=只留开关行，None=自动常用
+        ops_map = self._cfg.get("device_ops") or {}
+        op_names = ops_map.get(did)
         popup = QuickOpsPopup(self._service, self._jobs,
                               self._fake_device(dev, did),
-                              parent=host, inline=True, show_header=False)
+                              parent=host, inline=True, show_header=False,
+                              op_names=op_names)
         # 调节项异步长出后按内容收放窗口高度
         popup.loaded.connect(lambda: QTimer.singleShot(0, self._refit))
         lay.addWidget(popup)
@@ -296,8 +269,15 @@ class DesktopWidget(QWidget):
 
     # ---------- 配置应用 ----------
 
+    def _content_sig(self, cfg: dict) -> tuple:
+        """内容结构指纹：dids/设备元信息/每设备控件选择 变化才重建。"""
+        return (tuple(cfg.get("dids", [])),
+                tuple(sorted((cfg.get("devices") or {}).items())),
+                tuple(sorted((cfg.get("device_ops") or {}).items())))
+
     def apply_config(self, cfg: dict) -> None:
         old_title = _auto_title(self._cfg)
+        old_sig = self._content_sig(self._cfg)
         changed_scale = (cfg.get("scale") != self._cfg.get("scale"))
         self._cfg = dict(cfg)
         self._devices_meta = dict(cfg.get("devices") or {})
@@ -306,9 +286,12 @@ class DesktopWidget(QWidget):
         if topmost != has:
             self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, topmost)
             self.show()
-        # 背景透明度：只改卡片底色 alpha（控件/文字/边框不透）
+        # 背景透明度：卡片底色与外围边框同透明度变化，控件保持不透明
         if "bg_alpha" in cfg:
             self._paint_bg()
+        # 内容（设备列表/名称/控件选择）变化：整卡重建，避免残留 did 数字
+        if self._content_sig(self._cfg) != old_sig:
+            self._rebuild_content()
         if changed_scale:
             self._refit()
         if self._handle is not None:
@@ -316,11 +299,6 @@ class DesktopWidget(QWidget):
             if new_title != old_title:
                 self._handle.set_title(new_title)
         self.move(cfg.get("x", self.x()), cfg.get("y", self.y()))
-
-    def _set_scale(self, scale: int) -> None:
-        """缩放手柄回调：1% 整数步进写入配置并即时生效。"""
-        self._manager.update(self._cfg["id"], "scale",
-                             max(50, min(200, int(scale))))
 
     def _refit(self) -> None:
         """按内容当前实际尺寸重设可视区（行内调节异步加载后调用）。"""

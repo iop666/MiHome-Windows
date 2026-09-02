@@ -75,10 +75,13 @@ class _PagesHost(QWidget):
 class SettingsDialog(OverlayDialog):
     """设置对话框：暗色遮罩 + 居中圆角面板，可拖拽。"""
 
-    def __init__(self, parent=None, devices=None, widget_manager=None):
+    def __init__(self, parent=None, devices=None, widget_manager=None,
+                 service=None, jobs=None):
         super().__init__(parent)
         self._devices = devices or []
         self._widget_mgr = widget_manager
+        self._service = service
+        self._jobs = jobs
         self.setWindowTitle("设置")
         # 尺寸由 showEvent 按主窗口显隐决定：可见时覆盖主窗口，隐藏时铺满屏幕
         self._header_drag_pos = None
@@ -256,7 +259,35 @@ class SettingsDialog(OverlayDialog):
         _sync_switch(self._voice_fab_toggle)
         fab_row.addWidget(self._voice_fab_toggle)
 
-        return self._build_scroll([self._theme_item, self._scale_item, self._fab_item])
+        # ── 显示设备产品图 ──
+        self._icons_item, self._icons_label, self._icons_desc, icons_row = self._make_item(
+            "设备产品图",
+            "主界面设备卡片左侧显示产品图片（联网拉取一次后本地缓存）；关闭可节省"
+            "文本区域，配合下方「主卡片宽度」使用")
+        self._icons_toggle = themed_switch()
+        self._icons_toggle.setChecked(settings_store.get_show_device_icons())
+        _sync_switch(self._icons_toggle)
+        icons_row.addWidget(self._icons_toggle)
+
+        # ── 主界面卡片宽度 ──
+        self._width_item, self._width_label, self._width_desc, width_row = self._make_item(
+            "主卡片宽度",
+            "设备卡片宽度：产品图开启后建议选较宽一档，避免名称/房间文字被挤压；"
+            "改动即时生效")
+        self._card_width_options: list[tuple[int, str]] = [
+            (176, "紧凑 176"), (202, "标准 202"), (232, "较宽 232"),
+            (262, "加宽 262"), (300, "超宽 300"),
+        ]
+        cur_w = settings_store.get_card_width()
+        cur_w_lab = dict((w, t) for w, t in self._card_width_options)[cur_w]
+        self._width_combo = themed_combo(
+            [t for _, t in self._card_width_options], current=cur_w_lab)
+        width_row.addWidget(self._width_combo)
+
+        return self._build_scroll([
+            self._theme_item, self._scale_item, self._fab_item,
+            self._icons_item, self._width_item,
+        ])
 
     def _build_tray_page(self) -> QScrollArea:
         """托盘设置：系统托盘相关项集中归类。"""
@@ -584,6 +615,18 @@ class SettingsDialog(OverlayDialog):
         title_edit.editingFinished.connect(
             lambda e=title_edit, w=wid: self._widget_title(w, e.text()))
         title_row.addWidget(title_edit, 1)
+        ops_btn = QPushButton("控件…")
+        ops_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        ops_btn.setFixedSize(56, 26)
+        ops_btn.setToolTip("选择这台小组件里每台设备展示的调节控件")
+        ops_btn.setStyleSheet(
+            f"QPushButton {{ background: {SiColors.SURFACE}; border: none;"
+            f" border-radius: 7px; color: {SiColors.TEXT_PRIMARY}; font-size: 9pt; }}"
+            f"QPushButton:hover {{ background: {SiColors.BTN_HOVER}; }}")
+        ops_btn.clicked.connect(lambda _, w=wid: self._widget_ops(w))
+        if self._service is None or self._jobs is None:
+            ops_btn.setEnabled(False)
+        title_row.addWidget(ops_btn)
         del_btn = QPushButton("删除")
         del_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         del_btn.setFixedHeight(24)
@@ -674,6 +717,19 @@ class SettingsDialog(OverlayDialog):
         lay.addLayout(alpha_row)
         return row
 
+    def _widget_ops(self, wid: str) -> None:
+        if self._widget_mgr is None or self._service is None \
+                or self._jobs is None:
+            return
+        cfg = self._widget_mgr.get_config(wid)
+        if cfg is None:
+            return
+        from app.ui.widget_dialogs import WidgetOpsDialog
+        dlg = WidgetOpsDialog(self._service, self._jobs, cfg, self)
+        dlg.exec()
+        if dlg.result() == QDialog.DialogCode.Accepted:
+            self._widget_mgr.update(wid, "device_ops", dlg.result_map())
+
     def _widget_title(self, wid: str, text: str) -> None:
         if self._widget_mgr is not None:
             self._widget_mgr.update(wid, "title", text.strip())
@@ -713,7 +769,8 @@ class SettingsDialog(OverlayDialog):
         for item in (self._tray_item, self._start_min_item, self._always_item,
                      self._pos_item, self._fab_item, self._theme_item,
                      self._autostart_item, self._speaker_item,
-                     self._hide_item, self._scale_item, self._update_item):
+                     self._hide_item, self._scale_item, self._update_item,
+                     self._icons_item, self._width_item):
             item.setStyleSheet(panel_card)
             # 高度按内容自适应（不固定）：长描述换行后行自然变高，
             # 不会被固定 64px 裁掉；短描述保持紧凑。QScrollArea 负责
@@ -725,14 +782,15 @@ class SettingsDialog(OverlayDialog):
                       self._always_label, self._pos_label, self._fab_label,
                       self._theme_label, self._autostart_label,
                       self._speaker_label, self._hide_label, self._scale_label,
-                      self._update_label):
+                      self._update_label, self._icons_label,
+                      self._width_label):
             label.setStyleSheet(
                 f"color: {SiColors.TEXT_PRIMARY}; background: transparent; font-size: 10pt;")
         for desc in (self._tray_desc, self._start_min_desc,
                      self._always_desc, self._pos_desc, self._fab_desc,
                      self._theme_desc, self._autostart_desc,
                      self._speaker_desc, self._hide_desc, self._scale_desc,
-                     self._update_desc):
+                     self._update_desc, self._icons_desc, self._width_desc):
             desc.setStyleSheet(
                 f"color: {SiColors.TEXT_SECONDARY}; background: transparent; font-size: 7pt;")
         self._done_btn.setStyleSheet(
@@ -747,6 +805,9 @@ class SettingsDialog(OverlayDialog):
         # 托盘弹出位置下拉随主题刷新
         apply_combo_qss(self._pos_combo)
         self._pos_combo.set_arrow_color(SiColors.TEXT_SECONDARY)
+        # 主卡片宽度下拉随主题刷新
+        apply_combo_qss(self._width_combo)
+        self._width_combo.set_arrow_color(SiColors.TEXT_SECONDARY)
         # 分类 tab 颜色随主题刷新（style_data 是构造期求值的内联色）
         for btn in self._tab_buttons:
             from PySide6.QtGui import QColor
@@ -867,6 +928,10 @@ class SettingsDialog(OverlayDialog):
         settings_store.set_hide_no_func_devices(self._hide_toggle.isChecked())
         settings_store.set_check_update_enabled(self._update_toggle.isChecked())
         settings_store.set_theme_mode(self._pending_mode)
+        settings_store.set_show_device_icons(self._icons_toggle.isChecked())
+        w_idx = self._width_combo.currentIndex()
+        if 0 <= w_idx < len(self._card_width_options):
+            settings_store.set_card_width(self._card_width_options[w_idx][0])
         # 界面缩放：记录是否变化，供保存后提示重启
         old_scale = self._original_ui_scale
         self._scale_changed = abs(self._pending_ui_scale - old_scale) >= 1e-6

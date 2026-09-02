@@ -109,5 +109,32 @@ class WidgetManager(QObject):
         cfg["x"], cfg["y"] = int(x), int(y)
         self._persist()
 
+    def sync_device_meta(self, devices: list) -> None:
+        """用主窗口最新设备信息补齐小组件显示名/房间/在线（防 did 数字）。"""
+        by = {d.did: d for d in devices}
+        touched = False
+        for cfg in self._configs.values():
+            meta = dict(cfg.get("devices") or {})
+            changed = False
+            for did in cfg.get("dids", []):
+                dev = by.get(did)
+                if dev is None:
+                    continue
+                cur = meta.get(did)
+                if not cur or cur.get("name") != dev.name or \
+                        cur.get("room") != dev.room_name or \
+                        bool(cur.get("online", True)) != dev.online:
+                    meta[did] = {"name": dev.name, "room": dev.room_name,
+                                 "online": dev.online}
+                    changed = True
+            if changed:
+                cfg["devices"] = meta
+                touched = True
+                win = self._windows.get(cfg["id"])
+                if win is not None:
+                    win.apply_config(cfg)
+        if touched:
+            self._persist()
+
     def _persist(self) -> None:
         widget_store.save_all(list(self._configs.values()))
