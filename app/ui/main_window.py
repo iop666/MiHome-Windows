@@ -529,9 +529,21 @@ class MainWindow(QMainWindow):
             self.load_devices()
             return
         devices, known_power, metrics = cached
+        # 安全模式：缓存内容可能是带本地化之前的云端英文名，且白名单
+        # 尚未解析——先按名称/型号保守过滤（宁少勿漏），随后在线刷新
+        # 解析本地化中文名并重建（真机联调时首屏可能先空后出设备）
+        from app.core.safety import get_guard as _get_guard
+        guard = _get_guard()
+        if guard.enabled:
+            devices = [d for d in devices
+                       if guard.matches(d.did, d.name, d.model)]
+            self.load_devices()
         self._known_power.update(known_power)
         self._metrics.update(metrics)
-        self._show_status("已从本地缓存加载，点击右上角菜单刷新可同步最新设备")
+        if guard.enabled:
+            self._show_status("安全模式下正在解析设备…")
+        else:
+            self._show_status("已从本地缓存加载，点击右上角菜单刷新可同步最新设备")
         self._apply_devices(devices)
 
     def load_devices(self) -> None:

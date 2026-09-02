@@ -43,6 +43,26 @@ guard_free = SafetyGuard()
 assert not guard_free.enabled and guard_free.matches("anything")
 print("2. 未启用时放行 OK")
 
+# 2b. 名称模式：云端英文名经白名单解析放行；空白不敏感
+from app.core.safety import _norm
+g2 = SafetyGuard()
+g2._enabled = True
+g2._did_exact = None
+g2._value = "台灯2"
+g2._needle = _norm("台灯2")
+assert g2.contains("Mijia LED Desk Lamp 2") is False  # 英文名不直配
+assert g2.contains("米家台灯 2") is True              # 空白不敏感
+g2.set_allowed_dids({"942167279"})
+assert g2.matches_did("942167279")
+assert g2.matches("942167279", "Mijia LED Desk Lamp 2", "xiaomi.light.lamp31")
+g2.assert_can_operate("942167279", "Mijia LED Desk Lamp 2", "xiaomi.light.lamp31")
+try:
+    g2.assert_can_operate("2149401425", "Mijia Refrigerator", "midjd.fridge.bx27l")
+    raise SystemExit("白名单外设备未被拒绝")
+except GuardRejected:
+    pass
+print("2b. 名称模式 + 白名单解析 OK")
+
 # 场景对话框（安全模式禁用态）需要在 get_guard() 首次调用前设置环境
 os.environ["MIWU_SAFE_DEVICE"] = "942167279"
 

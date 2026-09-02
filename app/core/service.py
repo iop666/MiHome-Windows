@@ -170,11 +170,68 @@ class MijiaService:
                 room_name=room_name,
                 online=bool(d.get("isOnline", False)),
             ))
-        # 安全模式：列表只保留匹配设备（其余设备不可见，自然不可操作）
+        # 安全模式：列表只保留匹配设备（含本地化显示名解析），并写入
+        # allowed_dids 白名单供写入校验使用
         if self._guard.enabled:
-            result = [d for d in result
-                      if self._guard.matches(d.did, d.name, d.model)]
+            result = self._guard_filtered(result)
         return sorted(result, key=lambda x: (x.home_name, x.room_name, x.name))
+
+    # ---------- 安全模式解析（名称匹配容忍云端英文默认名） ----------
+
+    def _guard_filtered(self, items) -> list:
+        """安全模式下把设备集过滤为匹配集，并把解析出的 did 写回守卫。
+
+        items 元素可为 DeviceInfo 或原始 dict。名称匹配流程：
+        1) 直配：did/云端名/型号包含 needle；
+        2) 本地化兜底：云端名为纯英文（未改名）时，用该型号 spec 的
+           中文产品名再比一次（如「台灯2」命中 "Mijia LED Desk Lamp 2"）。
+        解析结果进入 guard.allowed_dids：此后写入校验只认白名单 did。
+        """
+        guard = self._guard
+        if guard.did_exact is not None:
+            return [it for it in items if str(self._it_did(it)) == guard.did_exact]
+        allowed: set[str] = set()
+        fallback = []  # 云端名纯英文的候选：待 spec 中文名兜底
+        for it in items:
+            did = str(self._it_did(it))
+            name = self._it_name(it)
+            model = self._it_model(it)
+            if guard.matches(did, name, model):
+                allowed.add(did)
+            elif name.isascii() and model:
+                fallback.append(it)
+        for it in fallback:
+            model = self._it_model(it)
+            if self._guard_zh_contains(model, self._it_name(it)):
+                allowed.add(str(self._it_did(it)))
+        guard.set_allowed_dids(allowed)
+        return [it for it in items if str(self._it_did(it)) in allowed]
+
+    @staticmethod
+    def _it_did(item) -> str:
+        return item.did if hasattr(item, "did") else item.get("did", "")
+
+    @staticmethod
+    def _it_name(item) -> str:
+        return str(item.name if hasattr(item, "name") else item.get("name", ""))
+
+    @staticmethod
+    def _it_model(item) -> str:
+        return str(item.model if hasattr(item, "model") else item.get("model", ""))
+
+    def _guard_zh_contains(self, model: str, cloud_name: str) -> bool:
+        """needle 命中云端名，或命中该型号 spec 的中文产品名即视为匹配。"""
+        if self._guard.contains(cloud_name):
+            return True
+        try:
+            spec = self._spec_cache.get(model)
+            if spec is None:
+                cache_dir = self._api.auth_data_path.parent
+                spec = self._fetch_spec(model, cache_dir)
+                self._spec_cache[model] = spec
+            return bool(spec and self._guard.contains(str(spec.get("name") or "")))
+        except Exception:
+            return False
 
     # ---------- 设备控制 ----------
 
@@ -562,13 +619,14 @@ class MijiaService:
             )
         except Exception as exc:
             raise _wrap_error(exc, "获取设备列表失败") from exc
+        if self._guard.enabled:
+            # 安全模式：与列表同一套解析（含 spec 中文名兜底），
+            # 只把匹配设备写进索引，写校验可依赖 allowed_dids 白名单
+            all_devices = self._guard_filtered(all_devices)
         for d in all_devices:
             did = str(d["did"])
             model = d.get("model", "")
             name = d.get("name", "")
-            # 安全模式：索引只保留匹配设备，保证 name/model 匹配型守卫可靠
-            if self._guard.enabled and not self._guard.matches(did, name, model):
-                continue
             self._device_index[did] = (model, name)
 
     def has_product_page_name(self, model: str) -> bool:
