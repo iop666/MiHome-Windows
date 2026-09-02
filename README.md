@@ -1,4 +1,4 @@
-# MiHome-Windows（DeepSeek Harness修改版）
+# MiHome-Windows（由DeepSeek Harness修改）
 
 米家设备的 Windows 桌面控制端。本仓库是
 [huanyuejue/MiHome-Windows](https://github.com/huanyuejue/MiHome-Windows)
