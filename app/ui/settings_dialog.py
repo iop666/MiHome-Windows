@@ -570,10 +570,20 @@ class SettingsDialog(OverlayDialog):
         wid = cfg["id"]
 
         title_row = QHBoxLayout()
-        name = QLabel(f"小组件 {index + 1} · {self._widget_devices_text(cfg)}")
-        name.setStyleSheet(
-            f"color: {SiColors.TEXT_PRIMARY}; background: transparent; font-size: 10pt;")
-        title_row.addWidget(name, 1)
+        from PySide6.QtWidgets import QLineEdit
+
+        title_edit = QLineEdit(cfg.get("title") or "")
+        title_edit.setPlaceholderText(
+            f"默认：{self._widget_devices_text(cfg)}")
+        title_edit.setToolTip("小组件显示名称；留空 = 默认用设备名称")
+        title_edit.setFixedHeight(28)
+        title_edit.setStyleSheet(
+            f"QLineEdit {{ background: {SiColors.SURFACE}; border: 1px solid {SiColors.LINE};"
+            f" border-radius: 7px; padding: 3px 8px; color: {SiColors.TEXT_PRIMARY};"
+            f" font-size: 10pt; }}")
+        title_edit.editingFinished.connect(
+            lambda e=title_edit, w=wid: self._widget_title(w, e.text()))
+        title_row.addWidget(title_edit, 1)
         del_btn = QPushButton("删除")
         del_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         del_btn.setFixedHeight(24)
@@ -663,6 +673,10 @@ class SettingsDialog(OverlayDialog):
             lambda v, w=wid, lab=alpha_val: self._widget_alpha(w, v, lab))
         lay.addLayout(alpha_row)
         return row
+
+    def _widget_title(self, wid: str, text: str) -> None:
+        if self._widget_mgr is not None:
+            self._widget_mgr.update(wid, "title", text.strip())
 
     def _widget_remove(self, wid: str) -> None:
         if self._widget_mgr is None:

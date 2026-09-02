@@ -63,6 +63,7 @@ def _normalize(w) -> dict | None:
     return {
         "id": w["id"],
         "dids": dids,
+        "title": str(w.get("title") or ""),
         "x": _int_or(w.get("x"), 120),
         "y": _int_or(w.get("y"), 120),
         "scale": min(max(scale, _UI_MIN_SCALE), _UI_MAX_SCALE),

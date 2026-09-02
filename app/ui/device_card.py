@@ -96,6 +96,15 @@ class DeviceCard(SiRowCard):
         if not self._online:
             self._power_btn.setEnabled(False)
 
+        # 产品图（异步就绪后由主窗口 set_icon 注入；无图时保持隐藏）
+        self._icon_label = QLabel()
+        self._icon_label.setObjectName("deviceIcon")
+        self._icon_label.setFixedSize(42, 42)
+        self._icon_label.setAlignment(Qt.AlignCenter)
+        self._icon_label.setStyleSheet(
+            "background: transparent; border: none;")
+        self._icon_label.hide()
+
         # 左侧文字列整体垂直居中，与右侧电源钮同一水平轴
         text_col = QWidget()
         text_col.setAttribute(Qt.WA_TranslucentBackground)
@@ -117,7 +126,9 @@ class DeviceCard(SiRowCard):
         btn_lay.addWidget(self._quick_btn, alignment=Qt.AlignHCenter)
 
         lay = self.layout()
-        lay.setContentsMargins(18, 10, 18, 10)
+        lay.setContentsMargins(14, 10, 14, 10)
+        lay.setSpacing(10)
+        lay.addWidget(self._icon_label, alignment=Qt.AlignVCenter)
         lay.addWidget(text_col)
         lay.addStretch(1)
         lay.addWidget(btn_col, alignment=Qt.AlignVCenter)
@@ -126,6 +137,13 @@ class DeviceCard(SiRowCard):
     def quick_btn(self) -> QPushButton:
         """快捷按钮（主窗口呼出弹层时取锚点坐标用）。"""
         return self._quick_btn
+
+    def set_icon(self, pixmap) -> None:
+        """注入产品图（主窗口异步取图完成后调用）。"""
+        if pixmap is None or pixmap.isNull():
+            return
+        self._icon_label.setPixmap(pixmap)
+        self._icon_label.show()
 
     # ---------- 状态渲染 ----------
 

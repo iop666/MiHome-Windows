@@ -80,8 +80,8 @@ class TrayQuickWindow(QDialog):
         self._root.setStyleSheet(
             f"QFrame#trayQuickPanel {{ background: {SiColors.WINDOW_BG}; border: 1px solid {SiColors.LINE}; border-radius: 14px; }}")
         lay = QVBoxLayout(self._root)
-        lay.setContentsMargins(14, 12, 14, 12)
-        lay.setSpacing(10)
+        lay.setContentsMargins(10, 8, 10, 8)
+        lay.setSpacing(6)
 
         # 标题栏：房子（打开主窗口）+ 加号（管理）+ 关闭
         header = QHBoxLayout()
@@ -166,7 +166,7 @@ class TrayQuickWindow(QDialog):
         self._host = QWidget()
         self._host.setStyleSheet("background: transparent;")
         self._list_lay = QVBoxLayout(self._host)
-        self._list_lay.setContentsMargins(0, 0, 6, 0)
+        self._list_lay.setContentsMargins(0, 0, 4, 0)
         self._list_lay.setSpacing(6)
         self._scroll.setWidget(self._host)
         lay.addWidget(self._scroll, stretch=1)

@@ -119,6 +119,10 @@ class MainWindow(QMainWindow):
         self._metrics: dict[str, str | None] = {}
         # did -> 排队等待执行的开关点击次数（忙碌期点击不再被吞，逐次串行）
         self._power_pending: dict[str, int] = {}
+        # 产品图：model -> QPixmap（磁盘缓存命中/异步拉取后），重建卡片回填
+        self._card_pix: dict = {}
+        self._icon_pending: set[str] = set()
+        self._icon_primed = False
         # 刷新防重入：请求在途时忽略再次点击
         self._loading_devices = False
         # 启动自动检查更新每次进程只做一次，避免 start 被重复触发
@@ -606,6 +610,8 @@ class MainWindow(QMainWindow):
         self._refresh_metrics()
         self._update_voice_fab()
         self._update_tray_devices()
+        # 产品图异步就绪后回填（缓存命中则立即生效）
+        QTimer.singleShot(300, self._prime_card_icons)
 
     def _maybe_localize_names(self) -> None:
         """未改名英文设备用中文名替换显示名（两个来源按序兜底）。
@@ -1137,6 +1143,10 @@ class MainWindow(QMainWindow):
         for row in range(rows):
             self._grid.setRowStretch(row, 0)
         self._grid.setRowStretch(rows, 1)
+        # 重建后回填已就绪的产品图
+        for model, pix in self._card_pix.items():
+            if pix is not None:
+                self._apply_card_icon(model, pix)
 
     def _columns_for_width(self, width: int) -> int:
         # 固定卡片宽度，列数随可视宽度动态计算，避免缩窄时卡片被裁切
@@ -1276,6 +1286,58 @@ class MainWindow(QMainWindow):
         if card is not None and shiboken6.isValid(card):
             card.set_busy(False)
         QMessageBox.warning(self, "操作失败", str(error))
+
+    # ---------- 产品图 ----------
+
+    def _prime_card_icons(self) -> None:
+        """为可见设备拉产品图：磁盘命中立即注入，否则后台取一次。"""
+        from app.core import icons as icon_cache
+
+        if self._icon_primed:
+            return
+        self._icon_primed = True
+        models: list[str] = []
+        seen: set[str] = set()
+        for dev in self._all_devices:
+            if dev.model and dev.model not in seen:
+                seen.add(dev.model)
+                models.append(dev.model)
+        todo: list[str] = []
+        for model in models:
+            pix = self._card_pix.get(model)
+            if pix is None:
+                pix = icon_cache.load_pixmap(model, 40)
+                if pix is not None:
+                    self._card_pix[model] = pix
+                    self._apply_card_icon(model, pix)
+            if model not in self._card_pix and model not in self._icon_pending:
+                self._icon_pending.add(model)
+                todo.append(model)
+        if todo:
+            self._jobs.submit(
+                lambda todo=todo: {
+                    m: self._service.fetch_product_icon(m) for m in todo},
+                on_success=self._on_card_icons_fetched,
+                on_error=lambda e: self._icon_pending.clear(),
+            )
+
+    def _on_card_icons_fetched(self, mapping: dict) -> None:
+        from app.core import icons as icon_cache
+
+        for model, data in (mapping or {}).items():
+            self._icon_pending.discard(model)
+            if not data:
+                continue
+            if icon_cache.save_bytes(model, data):
+                pix = icon_cache.load_pixmap(model, 40)
+                if pix is not None:
+                    self._card_pix[model] = pix
+                    self._apply_card_icon(model, pix)
+
+    def _apply_card_icon(self, model: str, pixmap) -> None:
+        for card in self._cards.values():
+            if card.device.model == model:
+                card.set_icon(pixmap)
 
     # ---------- 详情 ----------
 

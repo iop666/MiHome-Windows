@@ -72,6 +72,8 @@ class MijiaService:
         # spec 产品名缓存就绪后的产品页中文名缓存：
         # model -> 中文名或 None（已确认无中文名，不再重查）
         self._product_page_names: dict[str, str | None] = {}
+        # model -> 产品图 URL（含 None=确认无图）
+        self._icon_urls: dict[str, str | None] = {}
         # model -> 动作参数定义缓存（原始 miot-spec 页解析；供动作参数化卡片）
         self._action_args: dict[str, dict[str, list[dict]] | None] = {}
 
@@ -668,6 +670,53 @@ class MijiaService:
                     name = None  # 产品名也非中文，无回退价值
         self._product_page_names[model] = name
         return name
+
+    def product_icon_url(self, model: str) -> str | None:
+        """该型号产品图 URL（miot-spec 产品页 product.icon，米家 CDN）。
+
+        与百科 home.mi.com 同源（iotweb-product-center）；结果（含“确认
+        无图”）按型号缓存。阻塞，须后台线程调用。
+        """
+        if model in self._icon_urls:
+            return self._icon_urls[model]
+        url = None
+        try:
+            import requests as _requests
+
+            r = _requests.get(
+                f"https://home.miot-spec.com/spec/{model}", timeout=25,
+                headers={"User-Agent": "Mozilla/5.0"})
+            if r.status_code == 200:
+                m = re.search(
+                    r'<script data-page="app" type="application/json">(.*?)</script>',
+                    r.text, re.S)
+                if m:
+                    product = json.loads(m.group(1)).get("props", {}).get(
+                        "product", {})
+                    icon = product.get("icon")
+                    url = str(icon) if isinstance(icon, str) and icon.startswith(
+                        "http") else None
+        except Exception:
+            logger.warning("获取型号 %s 产品图地址失败", model)
+        self._icon_urls[model] = url
+        return url
+
+    def fetch_product_icon(self, model: str) -> bytes | None:
+        """下载产品图字节（供 icons 缓存落盘）；无图/失败返回 None。"""
+        url = self.product_icon_url(model)
+        if not url:
+            return None
+        try:
+            import requests as _requests
+
+            resp = _requests.get(url, timeout=25,
+                                 headers={"User-Agent": "Mozilla/5.0"})
+            if resp.status_code == 200 and resp.content[:8] in (
+                    b"\x89PNG\r\n\x1a\n", b"\xff\xd8\xff\xe0", b"\xff\xd8\xff\xe1"):
+                return resp.content
+        except Exception:
+            logger.warning("下载型号 %s 产品图失败", model)
+        return None
 
     def model_has_published_functions(self, model: str) -> bool | None:
         """该型号是否发布过含属性的功能 spec。
