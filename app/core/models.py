@@ -56,6 +56,45 @@ class DeviceDetail:
     actions: list[ActionInfo]
 
 
+@dataclass
+class SceneInfo:
+    """米家手动场景：主页「场景」入口列表与执行用。"""
+
+    scene_id: str
+    name: str
+    home_id: str
+    home_name: str
+
+
+@dataclass
+class QuickOpInfo:
+    """设备卡片快捷操作的单个可调项（由 spec 推导，仅含能紧凑渲染的形态）。
+
+    kind: "slider"（数值+range） / "enum"（value_list 枚举）
+    """
+
+    name: str
+    desc: str
+    type: str
+    kind: str
+    range: tuple | None = None
+    value_list: list | None = None
+
+
+@dataclass
+class ActionArg:
+    """动作的参数定义（来自 miot-spec 服务内 access=[] 的参数属性）。
+
+    字段语义与 PropInfo 对齐；range/value_list 视型号而定可缺省。
+    """
+
+    name: str
+    desc: str
+    type: str  # bool / int / uint / float / string
+    range: tuple | None = None
+    value_list: list | None = None
+
+
 def is_speaker(device: DeviceInfo) -> bool:
     """小爱音箱判定：音频控制栏、语音入口共用同一标准。
 

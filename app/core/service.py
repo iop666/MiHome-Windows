@@ -27,7 +27,16 @@ from mijiaAPI import (
 )
 from mijiaAPI.devices import DevAction, DevProp
 
-from .models import ActionInfo, DeviceDetail, DeviceInfo, PropInfo
+from . import safety as safety_mod
+from .models import (
+    ActionArg,
+    ActionInfo,
+    DeviceDetail,
+    DeviceInfo,
+    PropInfo,
+    QuickOpInfo,
+    SceneInfo,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +62,7 @@ class MijiaService:
         # 认证文件沿用上游默认位置 ~/.config/mijia-api/auth.json，
         # 这样 CLI 里扫过的码在 GUI 直接生效，反之亦然
         self._api = self._init_api()
+        self._guard = safety_mod.get_guard()
         self._device_cache: dict[str, mijiaDevice] = {}
         # did -> (model, name) 索引，批量读状态与共享设备组装时
         # 避免反复拉设备列表；自有与共享设备都在其中
@@ -62,6 +72,21 @@ class MijiaService:
         # spec 产品名缓存就绪后的产品页中文名缓存：
         # model -> 中文名或 None（已确认无中文名，不再重查）
         self._product_page_names: dict[str, str | None] = {}
+        # model -> 动作参数定义缓存（原始 miot-spec 页解析；供动作参数化卡片）
+        self._action_args: dict[str, dict[str, list[dict]] | None] = {}
+
+    def _assert_allowed(self, did: str) -> None:
+        """安全模式（MIWU_SAFE_DEVICE）下拒绝非匹配设备的控制操作。
+
+        名称/型号匹配需要设备信息，先查本地索引；索引缺失时按 fail-safe
+        拒绝（宁拦勿放）。仅检查，读操作不受影响。
+        """
+        if not self._guard.enabled:
+            return
+        name, model = "", ""
+        if did in self._device_index:
+            model, name = self._device_index[did]
+        self._guard.assert_can_operate(did, name, model)
 
     def _init_api(self) -> mijiaAPI:
         """构造上游客户端；认证文件损坏时隔离坏文件并降级为未登录。
@@ -145,6 +170,10 @@ class MijiaService:
                 room_name=room_name,
                 online=bool(d.get("isOnline", False)),
             ))
+        # 安全模式：列表只保留匹配设备（其余设备不可见，自然不可操作）
+        if self._guard.enabled:
+            result = [d for d in result
+                      if self._guard.matches(d.did, d.name, d.model)]
         return sorted(result, key=lambda x: (x.home_name, x.room_name, x.name))
 
     # ---------- 设备控制 ----------
@@ -216,6 +245,7 @@ class MijiaService:
         return result
 
     def write_prop(self, did: str, name: str, value) -> None:
+        self._assert_allowed(did)
         dev = self._get_device(did)
         try:
             dev.set(name, value)
@@ -223,6 +253,7 @@ class MijiaService:
             raise _wrap_error(exc, f"设置属性 {name} 失败") from exc
 
     def run_action(self, did: str, name: str, params=None) -> None:
+        self._assert_allowed(did)
         dev = self._get_device(did)
         try:
             if params is not None:
@@ -322,6 +353,7 @@ class MijiaService:
         读与写必须串在同一任务里完成（调用方经单线程队列提交），
         否则两次轮询之间会出现读后写的竞态。
         """
+        self._assert_allowed(did)
         current = self.power_state(did)
         if current is None:
             raise ServiceError("设备不支持开关控制或已离线")
@@ -335,6 +367,7 @@ class MijiaService:
         不经 mijiaDevice.set——那条路要构造设备对象并逐属性写入，
         首次点击要等两三次网络往返；直写批量接口一次请求完成。
         """
+        self._assert_allowed(did)
         info = self._specs_for([did]).get(did)
         method = self._find_on_method(info) if info else None
         if method is None:
@@ -530,7 +563,13 @@ class MijiaService:
         except Exception as exc:
             raise _wrap_error(exc, "获取设备列表失败") from exc
         for d in all_devices:
-            self._device_index[str(d["did"])] = (d.get("model", ""), d.get("name", ""))
+            did = str(d["did"])
+            model = d.get("model", "")
+            name = d.get("name", "")
+            # 安全模式：索引只保留匹配设备，保证 name/model 匹配型守卫可靠
+            if self._guard.enabled and not self._guard.matches(did, name, model):
+                continue
+            self._device_index[did] = (model, name)
 
     def has_product_page_name(self, model: str) -> bool:
         """该型号的产品页中文名是否已解析过（含“确认无”的情况）。"""
@@ -608,6 +647,292 @@ class MijiaService:
             if spec_name and has_cjk(spec_name) and spec_name != name:
                 result[did] = spec_name
         return result
+
+    # ---------- 米家场景（手动场景列表 / 执行） ----------
+
+    def list_scenes(self) -> list[SceneInfo]:
+        """列出全部家庭的手动场景；安全模式下场景整体禁用返回空列表。"""
+        if self._guard.enabled:
+            return []
+        try:
+            homes = self._api.get_homes_list()
+        except Exception as exc:
+            raise _wrap_error(exc, "获取场景列表失败") from exc
+        home_names = {str(h.get("id")): h.get("name", "未知") for h in homes}
+        result: list[SceneInfo] = []
+        for home in homes:
+            home_id = str(home.get("id"))
+            try:
+                scenes = self._api._get_scenes_list(home_id)
+            except Exception as exc:
+                # 单个家庭拉取失败不拖垮整体；场景通常只是增强功能
+                logger.warning("拉取家庭 %s 的场景失败: %s", home_id, exc)
+                continue
+            for scene in scenes:
+                result.append(SceneInfo(
+                    scene_id=str(scene.get("scene_id", "")),
+                    name=str(scene.get("name") or scene.get("scene_id", "")),
+                    home_id=str(scene.get("home_id") or home_id),
+                    home_name=home_names.get(
+                        str(scene.get("home_id") or home_id), home.get("name", "未知")),
+                ))
+        return result
+
+    def run_scene(self, scene_id: str, home_id: str) -> None:
+        """执行一个手动场景；安全模式下硬拒绝。"""
+        if self._guard.enabled:
+            raise safety_mod.GuardRejected(
+                "安全模式（MIWU_SAFE_DEVICE）已启用：场景执行已禁用")
+        try:
+            ret = self._api.run_scene(str(scene_id), str(home_id))
+        except Exception as exc:
+            raise _wrap_error(exc, "执行场景失败") from exc
+        # 上游该接口失败时可能静默返回空/假值，这里显式兜底
+        if not ret:
+            raise ServiceError("执行场景失败：网关未确认（请稍后重试）")
+
+    # ---------- 动作参数定义（miot-spec 原始页解析，动作参数化卡片用） ----------
+
+    def action_args_map(self, did: str) -> dict[str, list[ActionArg]]:
+        """该设备全部动作的参数定义映射（动作名 -> 参数列表）。
+
+        上游 DevAction 不保留参数的「in」引用，需解析原始 spec 页：
+        动作的 in 是同一服务内 access=[] 的参数属性 piid 数组，据此
+        还原每个参数的类型/范围/枚举。结果按型号内存缓存；拉取失败
+        按「无参数可建模」缓存（动作退化为无参按钮），不重复打网络。
+        阻塞调用，须经 JobExecutor 后台执行。
+        """
+        if not self._device_index:
+            self._refresh_device_index()
+        model = self._device_index.get(did, ("", ""))[0]
+        if not model:
+            return {}
+        if model in self._action_args:
+            return dict(self._action_args[model] or {})
+        args_map: dict[str, list[ActionArg]] = {}
+        try:
+            import requests as _requests
+
+            r = _requests.get(
+                f"https://home.miot-spec.com/spec/{model}", timeout=30,
+                headers={"User-Agent": "Mozilla/5.0"})
+            if r.status_code == 200:
+                m = re.search(
+                    r'<script data-page="app" type="application/json">(.*?)</script>',
+                    r.text, re.S)
+                if m:
+                    tree = json.loads(m.group(1)).get("props", {}).get("tree", {})
+                    args_map = self._parse_action_args(tree)
+        except Exception:
+            logger.warning("解析型号 %s 的动作参数失败，动作按无参处理", model)
+        # None=拉取失败确认无参可建模；空 dict=成功但无带参动作
+        self._action_args[model] = args_map
+        return dict(args_map)
+
+    def _parse_action_args(self, tree: dict) -> dict[str, list[ActionArg]]:
+        """遍历服务树还原动作参数；in 中不可解析的引用整段丢弃该参数。"""
+        from .models import ActionArg  # noqa: F401  (局部引用便于集中维护)
+
+        result: dict[str, list[ActionArg]] = {}
+        services = tree.get("services") or []
+        for svc in services:
+            props_by_piid: dict[int, dict] = {}
+            for prop in svc.get("properties") or []:
+                try:
+                    props_by_piid[int(prop["iid"])] = prop
+                except (KeyError, TypeError, ValueError):
+                    continue
+            for act in svc.get("actions") or []:
+                in_refs = act.get("in") or []
+                args: list[ActionArg] = []
+                for ref in in_refs:
+                    prop = props_by_piid.get(int(ref))
+                    arg = self._arg_from_prop(prop) if prop else None
+                    if arg is not None:
+                        args.append(arg)
+                if args:
+                    result[str(act.get("type"))] = args
+        return result
+
+    @staticmethod
+    def _arg_from_prop(prop: dict) -> ActionArg | None:
+        """把 spec 原始属性（参数形态）转成 ActionArg；无法建模返回 None。"""
+        fmt = str(prop.get("format", ""))
+        if fmt.startswith("int"):
+            ptype = "int"
+        elif fmt.startswith("uint"):
+            ptype = "uint"
+        elif fmt in ("bool", "float", "string"):
+            ptype = fmt
+        else:
+            return None
+        vrange = prop.get("valueRange")
+        vlist = prop.get("valueList")
+        name = str(prop.get("type") or "")
+        return ActionArg(
+            name=name,
+            desc=str(prop.get("description") or name),
+            type=ptype,
+            range=tuple(vrange) if isinstance(vrange, list) and len(vrange) >= 2 else None,
+            value_list=vlist,
+        )
+
+    # ---------- 卡片快捷操作（spec 直读直写，无需构造设备对象） ----------
+
+    @staticmethod
+    def _primary_slider_name(name: str) -> bool:
+        """高频调节滑块：亮度/色温/音量/温度等，布局优先。"""
+        n = name.lower().replace("-", "")
+        return ("bright" in n or "colortemp" in n or "ct" in n
+                or "temperature" in n or "volume" in n)
+
+    def quick_op_defs(self, did: str) -> list[QuickOpInfo]:
+        """从 spec 推导卡片快捷可调项（数量受限，仅紧凑形态）。
+
+        开关类（bool/on 系列）不在此列——电源钮已覆盖；只读/字符串/
+        长枚举同样跳过。spec 未拉取或型号无属性时返回空列表。
+        """
+        spec = self._specs_for([did]).get(did)
+        if not spec:
+            return []
+        sliders: list[dict] = []
+        enums: list[dict] = []
+        for prop in spec.get("properties", []):
+            rw = prop.get("rw", "")
+            if "w" not in rw:
+                continue
+            name = prop.get("name", "")
+            ptype = prop.get("type", "")
+            if ptype == "bool" and (name == "on" or name.startswith("on-")):
+                continue  # 开关由电源钮负责
+            if prop.get("range") and ptype in ("int", "uint", "float"):
+                sliders.append(prop)
+            elif prop.get("value-list") and ptype != "string":
+                options = prop.get("value-list") or []
+                if 0 < len(options) <= 6:
+                    enums.append(prop)
+        # 高频滑块优先，其次其它滑块；同档内按 spec 顺序
+        sliders.sort(key=lambda p: (0 if self._primary_slider_name(
+            p.get("name", "")) else 1,))
+        picked = sliders[:2] + enums[:2]
+        result = []
+        for prop in picked[:4]:
+            result.append(QuickOpInfo(
+                name=prop.get("name", ""),
+                desc=str(prop.get("description") or prop.get("name", "")),
+                type=str(prop.get("type", "")),
+                kind="slider" if prop.get("range") else "enum",
+                range=tuple(prop.get("range")) if prop.get("range") else None,
+                value_list=prop.get("value-list"),
+            ))
+        return result
+
+    def read_quick_values(self, did: str, names: list[str]) -> dict[str, Any | None]:
+        """按 spec method 批量回读若干属性的当前值（走 /prop/get）。
+
+        与 read_props 的区别：不构造 mijiaDevice，直接从 spec 缓存取
+        method，适合卡片快捷面板这类「首次交互前」的轻量读取。
+        """
+        spec = self._specs_for([did]).get(did)
+        if not spec:
+            return {}
+        by_name: dict[str, dict] = {}
+        for prop in spec.get("properties", []):
+            name = prop.get("name", "")
+            by_name[name] = prop
+            if "-" in name:
+                by_name[name.replace("-", "_")] = prop
+        queries: list[dict] = []
+        key_to_name: dict[tuple, str] = {}
+        for name in names:
+            prop = by_name.get(name)
+            if prop is None or "r" not in prop.get("rw", ""):
+                continue
+            method = dict(prop.get("method") or {})
+            method["did"] = did
+            queries.append(method)
+            key_to_name[(method.get("siid"), method.get("piid"))] = name
+        result: dict[str, Any | None] = {}
+        for start in range(0, len(queries), _BATCH_SIZE):
+            batch = queries[start:start + _BATCH_SIZE]
+            try:
+                rets = self._api.get_devices_prop(batch)
+            except Exception as exc:
+                raise _wrap_error(exc, "批量读取快捷值失败") from exc
+            for item in rets:
+                key = (item.get("siid"), item.get("piid"))
+                name = key_to_name.get(key)
+                if name is None:
+                    continue
+                result[name] = item["value"] if item.get("code") == 0 else None
+        return result
+
+    def write_quick_value(self, did: str, name: str, value: Any) -> None:
+        """卡片快捷面板的写入口：spec 直写 + 类型/范围校验。
+
+        校验规则与上游 mijiaDevice.set 对齐（int 强转、range 边界钳制、
+        value-list 成员校验、bool 收窄），避免无效指令打到网关。
+        """
+        self._assert_allowed(did)
+        spec = self._specs_for([did]).get(did)
+        prop = None
+        if spec:
+            for p in spec.get("properties", []):
+                if p.get("name") == name or (
+                    "-" in p.get("name", "")
+                    and p["name"].replace("-", "_") == name
+                ):
+                    prop = p
+                    break
+        if prop is None:
+            raise ServiceError(f"设备 {did} 的 spec 中没有属性 {name}")
+        if "w" not in prop.get("rw", ""):
+            raise ServiceError(f"属性 {name} 不可写入")
+        try:
+            value = self._coerce_spec_value(prop, value)
+        except ValueError as exc:
+            raise ServiceError(str(exc)) from exc
+        method = dict(prop.get("method") or {})
+        try:
+            rets = self._api.set_devices_prop(
+                [{"did": did, **method, "value": value}]
+            )
+        except Exception as exc:
+            raise _wrap_error(exc, f"设置属性 {name} 失败") from exc
+        items = rets if isinstance(rets, list) else [rets]
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            code = item.get("code")
+            if code in (0, 1):
+                continue
+            raise ServiceError(
+                f"设置失败（{item.get('message', '未知错误')}，错误码 {code}）")
+
+    @staticmethod
+    def _coerce_spec_value(prop: dict, value: Any):
+        """把 UI 提交的值按 spec 类型收窄/校验（对齐上游 mijiaDevice.set）。"""
+        ptype = prop.get("type", "")
+        vrange = prop.get("range") or ()
+        if ptype == "bool":
+            return bool(value)
+        if ptype in ("int", "uint"):
+            ivalue = int(value)
+            if len(vrange) >= 2:
+                ivalue = max(int(vrange[0]), min(ivalue, int(vrange[1])))
+            return ivalue
+        if ptype == "float":
+            fvalue = float(value)
+            if len(vrange) >= 2:
+                fvalue = max(float(vrange[0]), min(fvalue, float(vrange[1])))
+            return fvalue
+        if ptype == "string":
+            text = str(value)
+            if text in ("None", ""):
+                raise ValueError(f"无效字符串值: {text}")
+            return text
+        raise ValueError(f"不支持的类型: {ptype}")
+        # value-list 成员校验留给网关：部分设备写枚举值走字符串也成功
 
 
 def format_metrics_text(temp, hum) -> str | None:

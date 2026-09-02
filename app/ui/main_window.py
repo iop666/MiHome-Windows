@@ -109,6 +109,8 @@ class MainWindow(QMainWindow):
         self._current_home: str = ""
         self._current_room = _ALL_ROOMS
         self._settings_dialog: SettingsDialog | None = None
+        # 卡片快捷操作弹层（同一时刻至多一个）
+        self._quick_popup: QWidget | None = None
         # did -> 开关状态记忆；None 表示确认无开关能力。
         # 探测结论是设备的固有属性，跨家庭/房间/刷新复用；
         # 串行队列 FIFO 保证探测与开关写入的回调顺序不会互相覆盖
@@ -207,6 +209,7 @@ class MainWindow(QMainWindow):
         self._refresh_action = QAction("刷新", self._more_menu)
         self._refresh_action.triggered.connect(self.load_devices)
         self._more_menu.addAction(self._refresh_action)
+        self._more_menu.addAction("米家场景").triggered.connect(self.show_scenes)
         self._more_menu.addAction("托盘管理").triggered.connect(self.show_tray_manager)
         self._more_menu.addAction("设置").triggered.connect(self.show_settings)
         # 「关于」固定在菜单最底部
@@ -301,6 +304,7 @@ class MainWindow(QMainWindow):
 
     def _on_theme_changed(self, theme: str) -> None:
         """主题切换广播：重建可重建结构并刷新固定件。"""
+        self._close_quick_popup()
         self._reapply_chrome_styles()
         self._rebuild_tabs()
         self._rebuild_grid()
@@ -694,6 +698,51 @@ class MainWindow(QMainWindow):
         dlg.exec()
         dlg.deleteLater()
 
+    def show_scenes(self) -> None:
+        """打开米家场景对话框（列表 + 一键执行，安全模式下禁用）。"""
+        from app.core.safety import get_guard
+        from app.ui.scenes_dialog import ScenesDialog
+        if get_guard().enabled:
+            Toast.info(self, "安全模式（MIWU_SAFE_DEVICE）下场景已禁用", 3000)
+            return
+        if not self._all_devices:
+            Toast.info(self, "请先刷新获取设备列表", 2500)
+            return
+        dlg = ScenesDialog(self._service, self._jobs, self)
+        dlg.exec()
+        dlg.deleteLater()
+
+    # ---------- 卡片快捷操作弹层 ----------
+
+    def _close_quick_popup(self) -> None:
+        """收起快捷弹层（网格重建/主题切换/窗口隐藏前调用）。"""
+        popup = self._quick_popup
+        self._quick_popup = None
+        if popup is not None and shiboken6.isValid(popup):
+            try:
+                popup.close()
+                popup.deleteLater()
+            except Exception:
+                pass
+
+    def _on_quick_requested(self, did: str) -> None:
+        """卡片「快捷操作」按钮：呼出锚定在该按钮下方的调节弹层。"""
+        if self._quick_popup is not None and shiboken6.isValid(self._quick_popup):
+            self._quick_popup.close()
+        card = self._cards.get(did)
+        if card is None or not card.device.online:
+            return
+        from app.ui.quick_ops import QuickOpsPopup
+        popup = QuickOpsPopup(self._service, self._jobs, card.device, self)
+        popup.destroyed.connect(self._on_quick_popup_destroyed)
+        self._quick_popup = popup
+        btn = card.quick_btn
+        popup.popup_near(btn.mapToGlobal(btn.rect().bottomRight()))
+
+    def _on_quick_popup_destroyed(self) -> None:
+        if self._quick_popup is not None and not shiboken6.isValid(self._quick_popup):
+            self._quick_popup = None
+
     def show_settings(self) -> None:
         """打开设置对话框（托盘菜单与主界面菜单共用入口）。"""
         # 弹出期间置顶已有实例，避免托盘与主界面重复弹出
@@ -1021,6 +1070,8 @@ class MainWindow(QMainWindow):
             self._grid_columns = 0
             return
         self._grid_dirty = False
+        # 网格重建会销毁现有卡片：锚定其上的快捷弹层一并收起
+        self._close_quick_popup()
         for card in self._cards.values():
             card.deleteLater()
         self._cards.clear()
@@ -1045,6 +1096,7 @@ class MainWindow(QMainWindow):
             if device.did in self._metrics:
                 card.set_metrics(self._metrics.get(device.did))
             card.power_clicked.connect(self._on_power_clicked)
+            card.quick_requested.connect(self._on_quick_requested)
             card.open_requested.connect(self._on_open_device)
             self._cards[device.did] = card
             self._grid.addWidget(card, index // cols, index % cols)
@@ -1202,6 +1254,7 @@ class MainWindow(QMainWindow):
                 self._tray.set_tray_visible(True)
             except Exception:
                 pass
+            self._close_quick_popup()
             event.ignore()
             self.hide()
             # 常驻托盘态把物理页交还系统，任务管理器占用显著下降

@@ -1,0 +1,175 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+"""新增能力的离屏冒烟测试（无网络、无账号、不写运行数据）。
+
+覆盖：SafetyGuard 过滤/硬拒绝语义、工作台智能默认键与参数化动作卡、
+卡片快捷操作弹层渲染。运行：python -m tests.feature_smoke
+"""
+import os
+
+os.environ["QT_QPA_PLATFORM"] = "offscreen"
+
+# 安全模式测试先于任何 get_guard() 调用设置环境变量
+os.environ["MIWU_SAFE_DEVICE"] = "942167279"
+
+from PySide6.QtWidgets import (
+    QApplication,
+    QComboBox,
+    QLineEdit,
+    QPushButton,
+    QSlider,
+    QSpinBox,
+)
+
+app = QApplication([])
+
+# ---------- 1. SafetyGuard 语义 ----------
+from app.core.safety import SafetyGuard, GuardRejected
+
+guard = SafetyGuard()
+assert guard.enabled
+assert guard.matches("942167279", "台灯2", "xiaomi.light.lamp31")
+assert guard.matches_did("942167279")
+assert not guard.matches("000000001", "其他设备", "other.model")
+try:
+    guard.assert_can_operate("000000001", "其他设备", "other.model")
+    raise SystemExit("guard 未拒绝非匹配设备")
+except GuardRejected:
+    pass
+guard.assert_can_operate("942167279", "台灯2", "xiaomi.light.lamp31")
+print("1. SafetyGuard 语义 OK")
+
+del os.environ["MIWU_SAFE_DEVICE"]
+guard_free = SafetyGuard()
+assert not guard_free.enabled and guard_free.matches("anything")
+print("2. 未启用时放行 OK")
+
+# 场景对话框（安全模式禁用态）需要在 get_guard() 首次调用前设置环境
+os.environ["MIWU_SAFE_DEVICE"] = "942167279"
+
+# ---------- 3. 工作台智能默认键 ----------
+from app.core.models import ActionInfo, DeviceDetail, PropInfo
+from app.ui.workbench_panel import WorkbenchPanel
+
+panel = WorkbenchPanel(None, None)  # 仅构造骨架，不用真 service/jobs
+
+lamp_props = [
+    PropInfo(name="on", desc="开关 / 电源", type="bool",
+             readable=True, writable=True, range=None, value_list=None),
+    PropInfo(name="brightness", desc="Brightness / 亮度", type="int",
+             readable=True, writable=True, range=(1, 100, 1)),
+    PropInfo(name="color-temperature", desc="Color Temperature / 色温", type="int",
+             readable=True, writable=True, range=(2700, 5100, 1)),
+    PropInfo(name="mode", desc="Mode / 模式", type="int",
+             readable=True, writable=True, range=None,
+             value_list=[{"value": 0, "description": "Eye Care"},
+                         {"value": 1, "description": "Reading"}]),
+]
+detail = DeviceDetail(did="0", name="台灯2", model="xiaomi.light.lamp31",
+                      props=lamp_props, actions=[])
+panel._build_module_defs(detail)
+keys = panel._default_keys()
+assert "on" in keys, keys
+assert "brightness" in keys, keys
+assert "color-temperature" in keys, keys
+assert "mode" not in keys, keys  # 枚举模式不进智能默认
+print("3. 工作台智能默认键 OK:", keys)
+
+# ---------- 4. 参数化动作卡 ----------
+from app.core.models import ActionArg
+
+recorded = {}
+
+
+def fake_run_action(name, value):
+    recorded["name"] = name
+    recorded["value"] = value
+
+
+panel._run_action = fake_run_action  # type: ignore
+panel._action_args_map = {}
+panel._detail = detail
+act = ActionInfo(name="pet-food-out", desc="喂食")
+card = panel._build_param_action_card(act, [
+    ActionArg(name="amount", desc="Food Amount", type="int",
+              range=(1, 10, 1)),
+])
+spin = card.findChildren(QSpinBox)
+assert spin, "参数化动作卡缺少数值输入"
+spin[0].setValue(3)
+exec_btn = [b for b in card.findChildren(QPushButton) if b.text() == "执行"]
+assert exec_btn, "缺少执行按钮"
+exec_btn[0].click()
+app.processEvents()
+assert recorded == {"name": "pet-food-out", "value": [3]}, recorded
+
+act_text = ActionInfo(name="play-radio", desc="播放电台")
+card_text = panel._build_text_action_card(act_text)
+edits = card_text.findChildren(QLineEdit)
+assert edits
+edits[0].setText("音乐电台")
+b2 = [b for b in card_text.findChildren(QPushButton) if b.text() == "执行"][0]
+recorded.clear()
+b2.click()
+app.processEvents()
+assert recorded == {"name": "play-radio", "value": "音乐电台"}, recorded
+print("4. 参数化动作卡 / 文本动作卡 OK")
+
+# ---------- 5. 快捷操作弹层（fake service） ----------
+from app.ui.quick_ops import QuickOpsPopup
+
+
+class _FakeJobs:
+    def submit(self, fn, on_success=None, on_error=None):
+        try:
+            result = fn()
+        except Exception as exc:  # noqa: BLE001
+            if on_error is not None:
+                on_error(exc)
+        else:
+            if on_success is not None:
+                on_success(result)
+
+
+class _FakeService:
+    def quick_op_defs(self, did):
+        from app.core.models import QuickOpInfo
+        return [
+            QuickOpInfo(name="brightness", desc="亮度", type="int",
+                        kind="slider", range=(1, 100, 1)),
+            QuickOpInfo(name="color-temperature", desc="色温", type="int",
+                        kind="slider", range=(2700, 5100, 1)),
+        ]
+
+    def read_quick_values(self, did, names):
+        return {"brightness": 60, "color-temperature": 4000}
+
+    def write_quick_value(self, did, name, value):
+        self.last_write = (name, value)
+
+
+from app.core.models import DeviceInfo
+
+device = DeviceInfo(did="942167279", name="台灯2", model="xiaomi.light.lamp31",
+                    home_name="我的家庭", room_name="卧室", online=True)
+fake_svc = _FakeService()
+popup = QuickOpsPopup(fake_svc, _FakeJobs(), device)  # type: ignore
+sliders = popup.findChildren(QSlider)
+assert len(sliders) == 2, f"期望 2 个滑块，实际 {len(sliders)}"
+# 初始值回填
+assert sliders[0].value() == 60, sliders[0].value()
+assert sliders[1].value() == 4000, sliders[1].value()
+print("5. 快捷操作弹层渲染 + 回填 OK")
+
+# ---------- 6. 场景对话框（安全模式禁用态） ----------
+from app.core.safety import get_guard
+assert get_guard().enabled  # 上面已重置 MIWU_SAFE_DEVICE，首调即启用
+from app.ui.scenes_dialog import ScenesDialog
+
+dlg = ScenesDialog(None, None)  # type: ignore   # guard 分支不触网
+assert dlg._guard.enabled
+assert not dlg._scroll.isVisibleTo(dlg), "安全模式应隐藏场景列表"
+print("6. 场景对话框安全模式分支 OK")
+
+popup.close()
+panel.deleteLater()
+print("FEATURE SMOKE PASS")

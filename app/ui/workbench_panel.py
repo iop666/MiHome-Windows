@@ -31,8 +31,9 @@ from app.ui.prop_widgets import (
     GroupSection,
     build_prop_section,
     group_props,
+    is_primary_slider,
 )
-from app.ui.si_theme import SiColors, themed_label
+from app.ui.si_theme import SiColors, apply_combo_qss, themed_label
 from app.ui.workbench_item import WorkbenchItemWrapper
 
 
@@ -96,6 +97,11 @@ class WorkbenchPanel(QWidget):
         self._reordering = False
         self._reorder_group: QParallelAnimationGroup | None = None
         self._current_groups: list[tuple[str, list[PropInfo], PropInfo | None]] = []
+        # 模块分类表（智能默认键用）：key -> on/group-on/group/slider/other/action
+        self._module_kinds: dict[str, str] = {}
+        self._group_master_on: set[str] = set()
+        # 动作参数映射（action_args_map 后台取回后写入，渲染动作卡时读取）
+        self._action_args_map: dict[str, list] = {}
         # 写后静默与乐观值：避免设备未落盘前的旧值把 UI 弹回
         self._cooldown: dict[str, float] = {}
         self._last_written: dict[str, Any] = {}
@@ -281,7 +287,7 @@ class WorkbenchPanel(QWidget):
         self._model_label.show()
         self._build_module_defs(detail)
         keys = workbench_store.load(detail.did)
-        # 预置开关：首次进入且存在可写开关时自动加入
+        # 首次进入：智能预置常用功能（开关 + 高频滑块等，见 _default_keys）
         if keys is None:
             pre = self._default_keys()
             if pre:
@@ -293,32 +299,56 @@ class WorkbenchPanel(QWidget):
         valid = {k for k, _, _ in self._module_defs}
         keys = [k for k in keys if k in valid]
         self._active_keys = keys
+        # 动作参数需在渲染前就绪（决定动作卡形态：无参按钮/文本/参数化）
+        self._action_args_map = {}
+        if detail.actions:
+            self._load_hint.setText("正在获取功能参数…")
+            self._loading.show()
+            self._jobs.submit(
+                lambda: self._service.action_args_map(detail.did),
+                on_success=self._on_action_args_ready,
+                on_error=lambda exc: self._on_action_args_ready({}),
+            )
+        else:
+            self._finish_show()
+
+    def _on_action_args_ready(self, amap) -> None:
+        if not shiboken6.isValid(self):
+            return
+        self._action_args_map = amap or {}
+        self._finish_show()
+
+    def _finish_show(self) -> None:
+        if not shiboken6.isValid(self):
+            return
+        self._loading.hide()
+        self._title_label.show()
+        self._model_label.show()
         self._render_workbench()
         self._refresh_btn.show()
         self._edit_btn.show()
 
     def _default_keys(self) -> list[str]:
-        # 优先选择独立的 on 开关（最常用的控制方式）
-        for k, _, _ in self._module_defs:
-            if k == "on" or k.startswith("on-") or k.startswith("on_"):
-                return [k]
-        # 其次选择组合功能中主开关为 on 类型的
-        for k, _, _ in self._module_defs:
-            if k.startswith("group:"):
-                # 检查组合功能的主开关是否为 on 类型
-                group_key = k.replace("group:", "")
-                for gkey, members, master in self._current_groups:
-                    if gkey == group_key and master:
-                        if master.name == "on" or master.name.startswith("on-") or master.name.startswith("on_"):
-                            return [k]
-        # 再次选择组合功能
-        for k, _, _ in self._module_defs:
-            if k.startswith("group:"):
-                return [k]
-        # 最后选择标题包含"开关"的属性
-        for k, title, _ in self._module_defs:
+        """首次进入的智能默认：主开关 + 高频调节滑块（亮度/色温等）。
+
+        依据 _build_module_defs 期间的分类表（_module_kinds /
+        _group_master_on）按 spec 顺序挑选，兼顾「灯=开关+亮度+色温」；
+        无上述形态时回退旧逻辑（组合卡 → 标题含开关）。
+        """
+        picked: list[str] = []
+        for key, _, _ in self._module_defs:
+            kind = self._module_kinds.get(key, "other")
+            is_master_group = (kind == "group" and key in self._group_master_on)
+            if kind in ("on", "slider") or is_master_group:
+                picked.append(key)
+        if picked:
+            return picked
+        for key, _, _ in self._module_defs:
+            if key.startswith("group:"):
+                return [key]
+        for key, title, _ in self._module_defs:
             if "开关" in title:
-                return [k]
+                return [key]
         return []
 
     @staticmethod
@@ -328,10 +358,25 @@ class WorkbenchPanel(QWidget):
             return raw.split("/")[-1].strip()
         return raw.strip()
 
+    @staticmethod
+    def _is_on_name(name: str) -> bool:
+        return name == "on" or name.startswith("on-") or name.startswith("on_")
+
+    def _classify_prop(self, prop: PropInfo) -> str:
+        """单属性模块分类（智能默认键用）：on / slider / other。"""
+        if self._is_on_name(prop.name):
+            return "on"
+        if (prop.writable and prop.type in ("int", "uint", "float")
+                and prop.range and is_primary_slider(prop)):
+            return "slider"
+        return "other"
+
     def _build_module_defs(self, detail: DeviceDetail) -> None:
         self._module_defs.clear()
         self._module_builders.clear()
         self._current_groups.clear()
+        self._module_kinds.clear()
+        self._group_master_on.clear()
 
         def _desc_for_prop(p: PropInfo) -> str:
             # 区分可读只读与不可读，避免把 rw="" 的空卡当可展示项误导添加
@@ -360,6 +405,9 @@ class WorkbenchPanel(QWidget):
                 title = self._cn_title(master.desc or gkey)
                 desc = f"组合 · {len(members)} 项"
                 self._module_defs.append((key, title, desc))
+                self._module_kinds[key] = "group"
+                if self._is_on_name(master.name):
+                    self._group_master_on.add(key)
                 # 捕获
                 def _mk_group(km=gkey, mem=members, ma=master):
                     # 仅展示中文
@@ -393,6 +441,7 @@ class WorkbenchPanel(QWidget):
                     if cn in existing_titles:
                         cn = f"{cn} ({m.name})"
                     self._module_defs.append((key, cn, _desc_for_prop(m)))
+                    self._module_kinds[key] = self._classify_prop(m)
                     def _mk_single(pm=m, cn2=cn):
                         cn_prop = PropInfo(
                             name=pm.name, desc=cn2, type=pm.type,
@@ -405,7 +454,10 @@ class WorkbenchPanel(QWidget):
                     self._module_builders[key] = _mk_single
 
         # 每个动作独立成卡，不再聚合为“更多操作”
-        text_actions = {"execute-text-directive", "play-text", "play-music", "play-radio", "execute-text-directive"}
+        # 文本通道动作走既有 _in 语义；其余动作若 spec 给出参数定义则
+        # 渲染参数化卡片（_action_args_map 渲染前已就绪）
+        _TEXT_FAMILY = {"execute-text-directive", "play-text", "play-music",
+                        "play-radio"}
         for act in detail.actions:
             key = f"action:{act.name}"
             title = self._cn_title(act.desc)
@@ -414,69 +466,230 @@ class WorkbenchPanel(QWidget):
                 title = f"{title} ({act.name})"
             desc = f"动作 · {act.name}"
             self._module_defs.append((key, title, desc))
-            def _mk_single_action(a=act, _needs_text=(act.name in text_actions)):
-                card = QFrame()
-                card.setObjectName("propCard")
-                card.prop = PropInfo(name=a.name, desc=a.desc, type="action", readable=False, writable=False)
-                card.refresh_value = lambda v: None  # type: ignore
+            self._module_kinds[key] = "action"
+
+            def _mk_single_action(a=act, _needs_text=(act.name in _TEXT_FAMILY)):
                 if _needs_text:
-                    lay = QVBoxLayout(card)
-                    lay.setContentsMargins(20, 12, 20, 12)
-                    lay.setSpacing(8)
-                    lab = themed_label(self._cn_title(a.desc), SiColors.TEXT_PRIMARY)
-                    lab.setFont(QFont("Microsoft YaHei UI", 11, QFont.Weight.DemiBold))
-                    lay.addWidget(lab)
-                    row = QHBoxLayout()
-                    row.setSpacing(8)
-                    from PySide6.QtWidgets import QLineEdit
-                    edit = QLineEdit()
-                    ph = "输入要执行的指令…" if a.name == "execute-text-directive" else "输入文本…"
-                    edit.setPlaceholderText(ph)
-                    edit.setFixedHeight(32)
-                    edit.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-                    edit.setStyleSheet(
-                        f"QLineEdit {{ background: {SiColors.WINDOW_BG}; border: 1px solid {SiColors.LINE}; border-radius: 8px; "
-                        f"padding: 6px 10px; color: {SiColors.TEXT_PRIMARY}; selection-background-color: #3dbba4; font-size: 10pt; }}"
-                        "QLineEdit:focus { border-color: #3dbba4; }"
-                    )
-                    row.addWidget(edit, 1)
-                    btn = QPushButton("执行")
-                    btn.setFixedSize(64, 32)
-                    btn.setCursor(Qt.PointingHandCursor)
-                    btn.setStyleSheet(
-                        f"QPushButton {{ background: {SiColors.THEME}; color: #0b0b0e; border: none; border-radius: 8px; font-size: 9pt; font-weight: 600; }}"
-                        f"QPushButton:hover {{ background: {SiColors.THEME_HOVER}; }}")
-                    def _do_exec(n=a.name, e=edit):
-                        txt = e.text().strip()
-                        if not txt:
-                            e.setFocus()
-                            from app.ui.toast import Toast
-                            Toast.info(self, "请输入文本", 2000)
-                            return
-                        self._run_action(n, txt)
-                    btn.clicked.connect(lambda _, f=_do_exec: f())
-                    edit.returnPressed.connect(lambda f=_do_exec: f())
-                    row.addWidget(btn)
-                    lay.addLayout(row)
-                else:
-                    lay = QHBoxLayout(card)
-                    lay.setContentsMargins(20, 14, 20, 14)
-                    lay.setSpacing(12)
-                    lab = themed_label(self._cn_title(a.desc), SiColors.TEXT_PRIMARY)
-                    lab.setFont(QFont("Microsoft YaHei UI", 11, QFont.Weight.DemiBold))
-                    lay.addWidget(lab)
-                    lay.addStretch(1)
-                    btn = QPushButton("执行")
-                    btn.setFixedSize(64, 32)
-                    btn.setCursor(Qt.PointingHandCursor)
-                    btn.setStyleSheet(
-                        f"QPushButton {{ background: {SiColors.THEME}; color: #0b0b0e; border: none; border-radius: 8px; font-size: 9pt; font-weight: 600; }}"
-                        f"QPushButton:hover {{ background: {SiColors.THEME_HOVER}; }}")
-                    btn.clicked.connect(lambda _, n=a.name: self._run_action(n))
-                    lay.addWidget(btn)
-                card.setFixedHeight(76)
-                return card
+                    return self._build_text_action_card(a)
+                args = self._action_args_map.get(a.name)  # 渲染时取值（已就绪）
+                if args:
+                    return self._build_param_action_card(a, args)
+                return self._build_plain_action_card(a)
             self._module_builders[key] = _mk_single_action
+
+    # ---------- 动作卡片构建 ----------
+
+    def _build_plain_action_card(self, a) -> QFrame:
+        card = QFrame()
+        card.setObjectName("propCard")
+        card.setAttribute(Qt.WA_StyledBackground, True)
+        card.prop = PropInfo(name=a.name, desc=a.desc, type="action",
+                             readable=False, writable=False)
+        card.refresh_value = lambda v: None  # type: ignore
+        lay = QHBoxLayout(card)
+        lay.setContentsMargins(20, 14, 20, 14)
+        lay.setSpacing(12)
+        lab = themed_label(self._cn_title(a.desc), SiColors.TEXT_PRIMARY)
+        lab.setFont(QFont("Microsoft YaHei UI", 11, QFont.Weight.DemiBold))
+        lay.addWidget(lab)
+        lay.addStretch(1)
+        btn = self._make_exec_button(a.name, None)
+        lay.addWidget(btn)
+        return card
+
+    def _build_text_action_card(self, a) -> QFrame:
+        card = QFrame()
+        card.setObjectName("propCard")
+        card.setAttribute(Qt.WA_StyledBackground, True)
+        card.prop = PropInfo(name=a.name, desc=a.desc, type="action",
+                             readable=False, writable=False)
+        card.refresh_value = lambda v: None  # type: ignore
+        lay = QVBoxLayout(card)
+        lay.setContentsMargins(20, 12, 20, 12)
+        lay.setSpacing(8)
+        lab = themed_label(self._cn_title(a.desc), SiColors.TEXT_PRIMARY)
+        lab.setFont(QFont("Microsoft YaHei UI", 11, QFont.Weight.DemiBold))
+        lay.addWidget(lab)
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        from PySide6.QtWidgets import QLineEdit
+        edit = QLineEdit()
+        ph = ("输入要执行的指令…" if a.name == "execute-text-directive"
+              else "输入文本…")
+        edit.setPlaceholderText(ph)
+        edit.setFixedHeight(32)
+        edit.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        edit.setStyleSheet(
+            f"QLineEdit {{ background: {SiColors.WINDOW_BG}; border: 1px solid {SiColors.LINE}; border-radius: 8px; "
+            f"padding: 6px 10px; color: {SiColors.TEXT_PRIMARY}; selection-background-color: #3dbba4; font-size: 10pt; }}"
+            "QLineEdit:focus { border-color: #3dbba4; }"
+        )
+        row.addWidget(edit, 1)
+
+        def _do_exec():
+            txt = edit.text().strip()
+            if not txt:
+                edit.setFocus()
+                from app.ui.toast import Toast
+                Toast.info(self, "请输入文本", 2000)
+                return
+            self._run_action(a.name, txt)
+        btn = QPushButton("执行")
+        btn.setFixedSize(64, 32)
+        btn.setCursor(Qt.PointingHandCursor)
+        btn.setStyleSheet(
+            f"QPushButton {{ background: {SiColors.THEME}; color: {SiColors.ON_THEME_TEXT}; border: none;"
+            f" border-radius: 8px; font-size: 9pt; font-weight: 600; }}"
+            f"QPushButton:hover {{ background: {SiColors.THEME_HOVER}; }}")
+        btn.clicked.connect(lambda: _do_exec())
+        edit.returnPressed.connect(_do_exec)
+        row.addWidget(btn)
+        lay.addLayout(row)
+        return card
+
+    def _build_param_action_card(self, a, args) -> QFrame:
+        """带参动作卡片：每个参数一行控件 + 「执行」按列表顺序收集提交。
+
+        形参顺序即 spec 动作 in 的引用顺序；控件取值与动作参数类型对齐。
+        """
+        card = QFrame()
+        card.setObjectName("propCard")
+        card.setAttribute(Qt.WA_StyledBackground, True)
+        card.prop = PropInfo(name=a.name, desc=a.desc, type="action",
+                             readable=False, writable=False)
+        card.refresh_value = lambda v: None  # type: ignore
+        lay = QVBoxLayout(card)
+        lay.setContentsMargins(20, 12, 20, 12)
+        lay.setSpacing(6)
+
+        head = QHBoxLayout()
+        lab = themed_label(self._cn_title(a.desc), SiColors.TEXT_PRIMARY)
+        lab.setFont(QFont("Microsoft YaHei UI", 11, QFont.Weight.DemiBold))
+        head.addWidget(lab)
+        head.addStretch(1)
+        btn = QPushButton("执行")
+        btn.setFixedSize(64, 30)
+        btn.setCursor(Qt.PointingHandCursor)
+        btn.setStyleSheet(
+            f"QPushButton {{ background: {SiColors.THEME}; color: {SiColors.ON_THEME_TEXT}; border: none;"
+            f" border-radius: 8px; font-size: 9pt; font-weight: 600; }}"
+            f"QPushButton:hover {{ background: {SiColors.THEME_HOVER}; }}")
+        head.addWidget(btn)
+        lay.addLayout(head)
+
+        controls: list = []
+        children: list = []
+        for arg in args:
+            ctrl = self._build_arg_control(arg)
+            controls.append(ctrl)
+            row = QWidget()
+            row.setStyleSheet("background: transparent;")
+            rl = QHBoxLayout(row)
+            rl.setContentsMargins(0, 0, 0, 0)
+            rl.setSpacing(8)
+            name_lab = themed_label(arg.desc or arg.name, SiColors.TEXT_SECONDARY)
+            name_lab.setFont(QFont("Microsoft YaHei UI", 9))
+            rl.addWidget(name_lab)
+            rl.addStretch(1)
+            rl.addWidget(ctrl)
+            children.append(row)
+            lay.addWidget(row)
+        # 标记为组合形态：WorkbenchItemWrapper 据此自适应高度
+        card._children = children
+
+        def _collect():
+            values = []
+            for ctrl in controls:
+                value = ctrl._collect_value()
+                if value is None or value == "":
+                    from app.ui.toast import Toast
+                    Toast.info(self, "请填写完整参数", 2000)
+                    return
+                values.append(value)
+            self._run_action(a.name, values)
+        btn.clicked.connect(lambda: _collect())
+        return card
+
+    def _build_arg_control(self, arg):
+        """按参数类型构造取值控件；控件携带 _collect_value() 供执行时取值。"""
+        from PySide6.QtWidgets import QComboBox, QDoubleSpinBox, QLineEdit, QSpinBox
+
+        low_high = arg.range or (None, None)
+
+        def _num_range(default_hi: int):
+            low = int(low_high[0]) if low_high[0] is not None else -2147483648
+            hi = int(low_high[1]) if low_high[1] is not None else default_hi
+            return low, hi
+
+        if arg.type == "bool":
+            combo = QComboBox()
+            combo.addItems(["开启", "关闭"])
+            combo._collect_value = lambda c=combo: c.currentIndex() == 0  # type: ignore
+            apply_combo_qss(combo)
+            combo.setFixedHeight(30)
+            combo.setFixedWidth(110)
+            combo.setCursor(Qt.PointingHandCursor)
+            return combo
+        if arg.type in ("int", "uint"):
+            low, hi = _num_range(2_000_000_000 if arg.type == "uint" else 2_000_000_000)
+            spin = QSpinBox()
+            spin.setRange(low, hi)
+            spin.setValue(low if low_high[0] is not None else 0)
+            spin._collect_value = spin.value  # type: ignore
+            self._style_spin(spin)
+            return spin
+        if arg.type == "float":
+            spin = QDoubleSpinBox()
+            low = float(low_high[0]) if low_high[0] is not None else -1e9
+            hi = float(low_high[1]) if low_high[1] is not None else 1e9
+            spin.setDecimals(2)
+            spin.setRange(low, hi)
+            spin._collect_value = spin.value  # type: ignore
+            self._style_spin(spin)
+            return spin
+        if arg.value_list:
+            combo = QComboBox()
+            combo._opt_values = [item["value"] for item in arg.value_list]  # type: ignore
+            combo.addItems([
+                str(item.get("desc_zh_cn") or item.get("description")
+                    or item["value"]) for item in arg.value_list])
+            combo._collect_value = (  # type: ignore
+                lambda c=combo: c._opt_values[c.currentIndex()])
+            apply_combo_qss(combo)
+            combo.setFixedHeight(30)
+            combo.setCursor(Qt.PointingHandCursor)
+            return combo
+        # string 等一律文本框
+        edit = QLineEdit()
+        edit.setFixedHeight(30)
+        edit.setStyleSheet(
+            f"QLineEdit {{ background: {SiColors.WINDOW_BG}; border: 1px solid {SiColors.LINE};"
+            f" border-radius: 7px; padding: 4px 8px; color: {SiColors.TEXT_PRIMARY}; }}"
+            "QLineEdit:focus { border-color: #3dbba4; }")
+        edit._collect_value = edit.text  # type: ignore
+        return edit
+
+    @staticmethod
+    def _style_spin(spin) -> None:
+        spin.setFixedHeight(30)
+        spin.setCursor(Qt.PointingHandCursor)
+        spin.setStyleSheet(
+            f"QSpinBox, QDoubleSpinBox {{ background: {SiColors.SURFACE};"
+            f" border: 1px solid {SiColors.LINE}; border-radius: 7px;"
+            f" padding: 2px 6px; color: {SiColors.TEXT_PRIMARY}; }}"
+            "QSpinBox:focus, QDoubleSpinBox:focus { border-color: #3dbba4; }")
+
+    def _make_exec_button(self, action_name: str, value) -> QPushButton:
+        btn = QPushButton("执行")
+        btn.setFixedSize(64, 32)
+        btn.setCursor(Qt.PointingHandCursor)
+        btn.setStyleSheet(
+            f"QPushButton {{ background: {SiColors.THEME}; color: {SiColors.ON_THEME_TEXT};"
+            f" border: none; border-radius: 8px; font-size: 9pt; font-weight: 600; }}"
+            f"QPushButton:hover {{ background: {SiColors.THEME_HOVER}; }}")
+        btn.clicked.connect(
+            lambda _, n=action_name, v=value: self._run_action(n, v))
+        return btn
 
     def _render_workbench(self) -> None:
         self._clear_grid()
