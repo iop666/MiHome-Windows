@@ -66,6 +66,7 @@ class QuickOpsPopup(QFrame):
     """
 
     empty = Signal()  # 无可用调节项（inline 场景宿主据此收起/提示）
+    loaded = Signal()  # 调节项渲染完成（inline 宿主据此再次校正高度）
 
     def __init__(self, service: MijiaService, jobs: JobExecutor,
                  device: DeviceInfo, parent=None,
@@ -181,6 +182,7 @@ class QuickOpsPopup(QFrame):
                 self.setFixedHeight(_PANEL_MAX_H)
         self.setEnabled(self._online)
         self._place()
+        self.loaded.emit()
 
     def _build_op_row(self, op) -> QWidget:
         # 行卡片化：独立底 + 圆角，区分于弹层/行底色
@@ -330,7 +332,7 @@ class QuickOpsPopup(QFrame):
             return
         self._values[name] = value
         if on_success is not None:
-            on_success()
+            on_success(value)  # 透传已写入的值（滑块回显 lambda 依赖它）
         self.setEnabled(True)
 
     def _on_write_error(self, error: Exception) -> None:

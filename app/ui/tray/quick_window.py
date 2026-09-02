@@ -64,6 +64,8 @@ class TrayQuickWindow(QDialog):
         self._rows_by_did: dict[str, object] = {}
         # 列表可视高度：网格固定 4 行；展开态按内容放大
         self._list_view_h = 4 * 56 + 3 * 6
+        # 结构指纹：set_devices 只在结构变化时才重建（轮询只做就地刷新）
+        self._last_sig: object = None
 
         self.setWindowFlags(
             Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
@@ -296,15 +298,51 @@ class TrayQuickWindow(QDialog):
         QTimer.singleShot(120, self._fit_expanded_view)
 
     def set_devices(self, devices: list[DeviceInfo], known_power: dict[str, bool | None]) -> None:
-        """由主窗口在设备列表刷新后调用，传入全量设备与开关记忆。"""
+        """主窗口推送设备/开关记忆：结构变化才重建，否则就地刷新。
+
+        主窗口每 5s 轮询都调这里；全量重建会让行内调节区反复闪
+        「读取中」并重新拉取，改为按结构指纹增量处理，只在设备增删/
+        改名/上线变化等结构变化时重建一次。
+        """
+        old_known = self._known_power
+        new_known = dict(known_power)
+        changed_known = {k: v for k, v in new_known.items()
+                         if old_known.get(k) != v}
         self._devices = list(devices)
-        self._known_power = dict(known_power)
+        self._known_power = new_known
         self._tray_dids = tray_store.load()
         self._update_audio_bar()
         self._update_voice_bar()
-        if self.isVisible():
+        if not self.isVisible():
+            return
+        sig = self._structure_sig()
+        structural = sig != self._last_sig or any(
+            (old_known.get(k) is None) != (v is None)
+            for k, v in changed_known.items())
+        self._last_sig = sig
+        if structural:
             self._rebuild()
-            # 不再 adjustSize——它会按 sizeHint 漏算语音条/音频栏，导致窗口逐次缩短
+            return
+        if changed_known:
+            self._refresh_known_buttons(changed_known)
+
+    def _structure_sig(self) -> tuple:
+        """结构指纹：托盘 did 顺序 + 各设备的（名称, 在线）状态。"""
+        lookup = {d.did: (d.name, d.online) for d in self._devices}
+        return (tuple(self._tray_dids),
+                tuple(lookup.get(d) for d in self._tray_dids))
+
+    def _refresh_known_buttons(self, states: dict[str, bool | None]) -> None:
+        """就地刷新行内电源钮状态（不做任何重建，杜绝闪烁）。"""
+        import shiboken6
+
+        for did, st in states.items():
+            head = self._rows_by_did.get(did)
+            if head is None or not shiboken6.isValid(head):
+                continue
+            btn = getattr(head, "_power_btn", None)
+            if btn is not None:
+                btn.set_state(st)
 
     def set_metrics(self, metrics: dict[str, str | None]) -> None:
         """主窗口温湿度读数同步：更新内存并就地刷新可见行副标题。"""
@@ -612,6 +650,9 @@ class TrayQuickWindow(QDialog):
             else:
                 popup.empty.connect(
                     lambda d=dev.did: self._on_inline_empty(d))
+            # 调节项渲染完成后再校正一次窗口可视高度（内容是异步长出的）
+            popup.loaded.connect(
+                lambda: QTimer.singleShot(0, self._fit_expanded_view))
             blay.addWidget(popup)
             vlay.addWidget(body)
         return block
@@ -770,8 +811,14 @@ class TrayQuickWindow(QDialog):
         btn.set_state(ns)
         btn.set_busy(False)
 
-    def show_near_tray(self) -> None:
-        """在托盘附近或屏幕右下角显示，显示前重建以保证与托盘存储一致。"""
+    def show_near_tray(self, anchor_global: QPoint | None = None) -> None:
+        """托盘图标/鼠标位置（可选）呼出；显示前重建以保证托盘存储一致。"""
+        # 无锚点时沿用上一次成功打开的锚点（重开/重建仍保持鼠标跟随）
+        if anchor_global is None:
+            anchor_global = getattr(self, "_last_open_anchor", None)
+        if anchor_global is not None:
+            self._last_open_anchor = anchor_global
+        self._open_anchor = anchor_global
         self._tray_dids = tray_store.load()
         self._rebuild()
         # 顶部音频栏与语音输入条显隐需在计算弹出位置前确定，以便窗口高度正确
@@ -816,9 +863,26 @@ class TrayQuickWindow(QDialog):
             target = self.pos()
         else:
             geo = screen.availableGeometry()
-            x = geo.right() - self.width() - 16
-            y = geo.bottom() - self.height() - 16
-            target = QPoint(max(geo.left(), x), max(geo.top(), y))
+            mode = settings_store.get_tray_position()
+            if (mode == settings_store.TRAY_POS_CURSOR
+                    and getattr(self, "_open_anchor", None) is not None):
+                # 跟随鼠标/托盘图标：窗口贴锚点上方（右对齐锚点），
+                # 上方放不下（如任务栏在屏幕顶端）时改放锚点下方
+                ax = self._open_anchor.x()
+                ay = self._open_anchor.y()
+                x = ax - self.width() + 20
+                y = ay - self.height() - 12
+                if y < geo.top() + 8:
+                    y = ay + 12
+                x = max(geo.left() + 8,
+                        min(x, geo.right() - self.width() - 8))
+                y = max(geo.top() + 8,
+                        min(y, geo.bottom() - self.height() - 8))
+                target = QPoint(x, y)
+            else:
+                x = geo.right() - self.width() - 16
+                y = geo.bottom() - self.height() - 16
+                target = QPoint(max(geo.left(), x), max(geo.top(), y))
         self._target_pos = target
         # 动画起点：目标下方 10px + 透明 0，全部在隐藏态摆好，只 show 一次
         start = QPoint(target.x(), target.y() + 10)

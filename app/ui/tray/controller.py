@@ -100,18 +100,21 @@ class TrayController:
         if reason != QSystemTrayIcon.ActivationReason.Trigger:  # 仅左键单击
             return
         quick = self._quick
+        # 鼠标当前位置（即所点托盘图标处）作为「跟随鼠标位置」模式的锚点
+        from PySide6.QtGui import QCursor
+        anchor = QCursor.pos()
         # 正在播放呼出/隐藏动画时，终止旧动画并以带动画方式切换，避免直接 hide 丢失关闭动画
         if quick.is_animating():
             quick.abort_toggle_animation()
             if quick.isVisible() or quick.is_explicitly_visible():
                 quick.hide_animated()
             else:
-                quick.show_near_tray()
+                quick.show_near_tray(anchor)
             return
         if quick.isVisible():
             quick.hide_animated()
         else:
-            quick.show_near_tray()
+            quick.show_near_tray(anchor)
 
     def _show_main(self) -> None:
         self._main.show()

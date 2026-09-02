@@ -331,6 +331,20 @@ class SettingsDialog(OverlayDialog):
         _sync_switch(self._always_toggle)
         always_row.addWidget(self._always_toggle)
 
+        # ── 托盘快捷窗口弹出位置 ──
+        self._pos_item, self._pos_label, self._pos_desc, pos_row = self._make_item(
+            "托盘快捷窗口弹出位置",
+            "点托盘图标时窗口出现的位置：右下角为默认；「鼠标位置上方」会让窗口"
+            "贴着鼠标所在托盘图标展开，图标在屏幕中部时无需大距离移动鼠标")
+        self._pos_options: list[tuple[str, str]] = [
+            ("bottom_right", "屏幕右下角"),
+            ("cursor", "跟随鼠标位置上方"),
+        ]
+        self._pos_combo = themed_combo(
+            [label for _, label in self._pos_options],
+            current=dict(self._pos_options)[settings_store.get_tray_position()])
+        pos_row.addWidget(self._pos_combo)
+
         # ── 隐藏无可控制功能的设备 ──
         self._hide_item, self._hide_label, self._hide_desc, hide_row = self._make_item(
             "隐藏无可控制功能的设备",
@@ -352,8 +366,8 @@ class SettingsDialog(OverlayDialog):
 
         return self._build_scroll([
             self._autostart_item, self._speaker_item, self._tray_item,
-            self._start_min_item, self._always_item, self._hide_item,
-            self._update_item,
+            self._start_min_item, self._always_item, self._pos_item,
+            self._hide_item, self._update_item,
         ])
 
     # ---------- 分类切换 ----------
@@ -407,9 +421,9 @@ class SettingsDialog(OverlayDialog):
         """主题相关内联样式：构造与 retheme 共用。"""
         panel_card = f"QFrame {{ background: {SiColors.CARD}; border-radius: 10px; }}"
         for item in (self._tray_item, self._start_min_item, self._always_item,
-                     self._fab_item, self._theme_item, self._autostart_item,
-                     self._speaker_item, self._hide_item, self._scale_item,
-                     self._update_item):
+                     self._pos_item, self._fab_item, self._theme_item,
+                     self._autostart_item, self._speaker_item,
+                     self._hide_item, self._scale_item, self._update_item):
             item.setStyleSheet(panel_card)
             # 高度按内容自适应（不固定）：长描述换行后行自然变高，
             # 不会被固定 64px 裁掉；短描述保持紧凑。QScrollArea 负责
@@ -418,13 +432,15 @@ class SettingsDialog(OverlayDialog):
         self._title_label.setStyleSheet(
             f"color: {SiColors.TEXT_PRIMARY}; background: transparent;")
         for label in (self._tray_label, self._start_min_label,
-                      self._always_label, self._fab_label, self._theme_label,
-                      self._autostart_label, self._speaker_label,
-                      self._hide_label, self._scale_label, self._update_label):
+                      self._always_label, self._pos_label, self._fab_label,
+                      self._theme_label, self._autostart_label,
+                      self._speaker_label, self._hide_label, self._scale_label,
+                      self._update_label):
             label.setStyleSheet(
                 f"color: {SiColors.TEXT_PRIMARY}; background: transparent; font-size: 10pt;")
-        for desc in (self._tray_desc, self._start_min_desc, self._always_desc,
-                     self._fab_desc, self._theme_desc, self._autostart_desc,
+        for desc in (self._tray_desc, self._start_min_desc,
+                     self._always_desc, self._pos_desc, self._fab_desc,
+                     self._theme_desc, self._autostart_desc,
                      self._speaker_desc, self._hide_desc, self._scale_desc,
                      self._update_desc):
             desc.setStyleSheet(
@@ -438,6 +454,9 @@ class SettingsDialog(OverlayDialog):
         # 界面缩放下拉同样随主题刷新（遗漏曾致切主题后仍保持旧深色样式）
         apply_combo_qss(self._scale_combo, editable=True)
         self._scale_combo.set_arrow_color(SiColors.TEXT_SECONDARY)
+        # 托盘弹出位置下拉随主题刷新
+        apply_combo_qss(self._pos_combo)
+        self._pos_combo.set_arrow_color(SiColors.TEXT_SECONDARY)
         # 分类 tab 颜色随主题刷新（style_data 是构造期求值的内联色）
         for btn in self._tab_buttons:
             from PySide6.QtGui import QColor
@@ -542,6 +561,10 @@ class SettingsDialog(OverlayDialog):
         else:
             settings_store.set_start_minimized(False)
             settings_store.set_tray_always_expand(False)
+        # 托盘弹出位置
+        pos_idx = self._pos_combo.currentIndex()
+        if 0 <= pos_idx < len(self._pos_options):
+            settings_store.set_tray_position(self._pos_options[pos_idx][0])
         # 默认输出音箱：下拉文案反查 did；无音箱时被灰置为「自动」存空串
         idx = self._speaker_combo.currentIndex()
         if 0 <= idx < len(self._speaker_options):

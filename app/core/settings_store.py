@@ -26,6 +26,7 @@ _DEFAULTS: dict = {
     "ui_scale": 1.0,    # 界面缩放个人微调乘数（以 96DPI 为基准），需重启生效
     "tray_columns": 2,  # 托盘快捷窗口卡片列数：1 或 2
     "tray_always_expand": False,  # 托盘设备行常显调节（免点开），调节项仍可在托盘管理配置
+    "tray_position": "bottom_right",  # 托盘快捷窗口弹出位置：bottom_right / cursor（跟随鼠标上方）
     "check_update_enabled": True,  # 启动时自动检查 GitHub 新版本
 }
 
@@ -126,6 +127,26 @@ def get_tray_always_expand() -> bool:
 def set_tray_always_expand(value: bool) -> None:
     raw = _read_raw()
     raw["tray_always_expand"] = bool(value)
+    _write_raw(raw)
+
+
+# 托盘快捷窗口弹出位置可选值
+TRAY_POS_BOTTOM_RIGHT = "bottom_right"
+TRAY_POS_CURSOR = "cursor"
+
+
+def get_tray_position() -> str:
+    """托盘快捷窗口弹出位置：右下角 / 跟随鼠标位置上方。"""
+    value = str(_read_raw().get("tray_position", TRAY_POS_BOTTOM_RIGHT))
+    if value not in (TRAY_POS_BOTTOM_RIGHT, TRAY_POS_CURSOR):
+        return TRAY_POS_BOTTOM_RIGHT
+    return value
+
+
+def set_tray_position(value: str) -> None:
+    raw = _read_raw()
+    raw["tray_position"] = value if value in (
+        TRAY_POS_BOTTOM_RIGHT, TRAY_POS_CURSOR) else TRAY_POS_BOTTOM_RIGHT
     _write_raw(raw)
 
 

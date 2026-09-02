@@ -201,6 +201,15 @@ app.processEvents()
 assert len(only_ct.findChildren(QSlider)) == 1, "op_names 过滤失效"
 print("5b. inline 复用 + 自选过滤 OK")
 
+# 5c. 滑块提交回执（回归：on_success 曾缺 'v' 参数抛 TypeError）
+fake_svc.last_write = None
+popup._commit_value("brightness", 80,
+                    on_success=lambda v: None)  # 模拟松手提交
+app.processEvents()
+assert fake_svc.last_write == ("brightness", 80), fake_svc.last_write
+assert popup.isEnabled(), "提交完成后应恢复可用"
+print("5c. 滑块提交回执 OK")
+
 # ---------- 6. 场景对话框（安全模式禁用态） ----------
 from app.core.safety import get_guard
 assert get_guard().enabled  # 上面已重置 MIWU_SAFE_DEVICE，首调即启用
