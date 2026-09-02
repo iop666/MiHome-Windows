@@ -78,6 +78,8 @@ class DesktopWidget(QWidget):
         # did -> 电源钮（就地刷新状态用）；did -> 最近一次已知开关状态
         self._power_btns: dict[str, PowerButton] = {}
         self._power_known: dict[str, bool | None] = {}
+        # did -> 行内调节弹层（展开时同步/轮询其滑块与枚举的真实值）
+        self._op_popups: dict[str, object] = {}
         # 未锁定时按住空白拖动；None = 未在拖动
         self._drag_offset: QPoint | None = None
         self._press_pos: QPoint | None = None
@@ -128,6 +130,7 @@ class DesktopWidget(QWidget):
             self._content = None
             self._proxy = None
         self._power_btns.clear()
+        self._op_popups.clear()
         outer = QWidget()
         outer.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         outer.setFixedWidth(_DESIGN_W + 16)
@@ -231,6 +234,9 @@ class DesktopWidget(QWidget):
                               self._fake_device(dev, did),
                               parent=host, inline=True, show_header=False,
                               op_names=op_names, colors=self._col)
+        # 行内调节项：登记引用（周期回读/别处写入后就地刷新）
+        self._op_popups[did] = popup
+        popup._change_cb = lambda d, n, v: self._on_quick_value_written(d, n, v)
         # 调节项异步长出后按内容收放窗口高度；无可用项收起后同样校正
         popup.loaded.connect(lambda: QTimer.singleShot(0, self._refit))
         popup.empty.connect(lambda: QTimer.singleShot(0, self._refit))
@@ -256,13 +262,45 @@ class DesktopWidget(QWidget):
                 continue  # 离线设备不读（云端缓存值不可信）
             if bool((meta.get(did) or {}).get("online", True)):
                 dids.append(did)
-        if not dids:
+        if dids:
+            self._jobs.submit(
+                lambda: self._service.power_states(dids),
+                on_success=self._apply_power_states,
+                on_error=lambda _: None,
+            )
+        # 调节项真实值（亮度/色温等）同样随周期回读刷新
+        self._refresh_quick_values()
+
+    def _refresh_quick_values(self) -> None:
+        """展开的调节行定期回读当前真实值，捕捉设备端/别处改动。"""
+        import shiboken6
+
+        for did, popup in list(self._op_popups.items()):
+            if popup is None or not shiboken6.isValid(popup):
+                continue
+            try:
+                popup.refresh_from_cloud()
+            except Exception:
+                continue
+
+    def _on_quick_value_written(self, did: str, name: str, value) -> None:
+        """本窗写值成功：广播给其它小组件 + 主窗口/托盘（保持展开状态一致）。"""
+        manager = getattr(self, "_manager", None)
+        if manager is not None and hasattr(manager, "broadcast_quick_value"):
+            try:
+                manager.broadcast_quick_value(did, name, value)
+            except Exception:
+                pass
+
+    def apply_quick_value(self, did: str, name: str, value) -> None:
+        """外部值变化（托盘/主界面写值、周期回读）后就地刷新对应行。"""
+        popup = self._op_popups.get(did)
+        if popup is None:
             return
-        self._jobs.submit(
-            lambda: self._service.power_states(dids),
-            on_success=self._apply_power_states,
-            on_error=lambda _: None,
-        )
+        try:
+            popup.update_value(name, value)
+        except Exception:
+            pass
 
     def _apply_power_states(self, states: dict) -> None:
         for did, state in (states or {}).items():

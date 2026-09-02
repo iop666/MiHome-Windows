@@ -177,6 +177,36 @@ class WidgetManager(QObject):
             except Exception:
                 continue
 
+    def broadcast_quick_value(self, did: str, name: str, value) -> None:
+        """某入口写了一个可调项：同步到全部小组件行内展开的对应控件。"""
+        if not name or value is None:
+            return
+        for win in self._windows.values():
+            if win is None:
+                continue
+            try:
+                win.apply_quick_value(did, name, value)
+            except Exception:
+                continue
+        host = self._host
+        if host is not None and hasattr(host, "apply_quick_value_external"):
+            try:
+                host.apply_quick_value_external(did, name, value)
+            except Exception:
+                pass
+
+    def update_widget_quick_value(self, did: str, name: str, value) -> None:
+        """只更新小组件窗口（托盘写值后的广播入口，避免回环）。"""
+        if not name or value is None:
+            return
+        for win in self._windows.values():
+            if win is None:
+                continue
+            try:
+                win.apply_quick_value(did, name, value)
+            except Exception:
+                continue
+
     def power_changed_everywhere(self, did: str, state: bool | None) -> None:
         """小组件内改动开关的完整广播：其它小组件 + 主窗口卡片/托盘。"""
         if state is None:

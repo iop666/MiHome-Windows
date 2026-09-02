@@ -18,7 +18,8 @@ from app.ui.workbench_panel import WorkbenchPanel
 
 class DeviceDetailDialog(OverlayDialog):
     def __init__(self, service: MijiaService, jobs: JobExecutor,
-                 device: DeviceInfo, parent=None):
+                 device: DeviceInfo, parent=None,
+                 on_value_written=None):
         super().__init__(parent)
         self.device = device
 
@@ -33,7 +34,8 @@ class DeviceDetailDialog(OverlayDialog):
         outer.addLayout(header)
 
         # 工作台
-        self._workbench = WorkbenchPanel(service, jobs, self._panel)
+        self._workbench = WorkbenchPanel(service, jobs, self._panel,
+                                         on_value_written=on_value_written)
         outer.addWidget(self._workbench, stretch=1)
 
     @property

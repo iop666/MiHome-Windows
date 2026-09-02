@@ -89,6 +89,13 @@ class QuickOpsPopup(QFrame):
         self._anchor: QPoint | None = None
         self._values: dict[str, object] = {}
         self._col = colors if colors is not None else SiColors
+        # 已渲染的可调项与对应控件，供外部同步真实值/周期回读时就地刷新
+        self._shown_defs: list = []
+        self._sliders: dict = {}  # name -> (slider, 数值label, scale)
+        self._enums: dict = {}    # name -> [(value, button)]
+        # 本组件写值成功后的回调（宿主注入，用于跨面板广播）：
+        # 签名为 cb(did, name, value)
+        self._change_cb = None
 
         if not inline:
             self.setWindowFlags(
@@ -180,6 +187,9 @@ class QuickOpsPopup(QFrame):
             return
         self._hint.hide()
         self._values = dict(values or {})
+        self._shown_defs = list(defs)
+        self._sliders.clear()
+        self._enums.clear()
         for op in defs:
             self._lay.addWidget(self._build_op_row(op))
         if not self._inline:
@@ -251,6 +261,8 @@ class QuickOpsPopup(QFrame):
         else:
             slider.setValue(int(round(low * scale)))
         _show(slider.value())
+        # 登记控件引用：外部值变化（另一面板写入/周期回读）时就地刷新
+        self._sliders[op.name] = (slider, val_label, scale)
         return slider
 
     def _slider_qss(self) -> str:
@@ -289,6 +301,8 @@ class QuickOpsPopup(QFrame):
         for btn, item in zip(buttons, options):
             if item["value"] == current:
                 self._highlight_enum(btn, True)
+        self._enums[op.name] = [(item["value"], btn)
+                                for btn, item in zip(buttons, options)]
         return self._wrap_grid(grid)
 
     @staticmethod
@@ -315,6 +329,59 @@ class QuickOpsPopup(QFrame):
         self._highlight_enum(btn, True)
         self._commit_value(name, value)
 
+    # ---------- 外部状态同步：就地刷新显示值（不重建、不写云） ----------
+
+    def update_value(self, name: str, value) -> None:
+        """另一入口（其它面板/周期回读）拿到新值后就地更新本控件显示。"""
+        if not name or not shiboken6.isValid(self):
+            return
+        if value is None:
+            return
+        self._values[name] = value
+        sl = self._sliders.get(name)
+        if sl is not None:
+            slider, label, scale = sl
+            try:
+                ivalue = int(round(float(value) * scale))
+            except (TypeError, ValueError):
+                return
+            ivalue = max(slider.minimum(), min(ivalue, slider.maximum()))
+            slider.blockSignals(True)
+            slider.setValue(ivalue)
+            label.setText(f"{float(value) / scale:g}")
+            slider.blockSignals(False)
+            return
+        ent = self._enums.get(name)
+        if ent:
+            for enum_value, btn in ent:
+                self._highlight_enum(btn, enum_value == value)
+
+    def refresh_from_cloud(self) -> None:
+        """批量回读本面板展示项的当前真实值并就地刷新（设备端/别处改动）。"""
+        if not shiboken6.isValid(self) or not self._shown_defs:
+            return
+        names = [d.name for d in self._shown_defs]
+        did = self._did
+
+        def _read():
+            try:
+                return self._service.read_quick_values(did, names) or {}
+            except Exception:
+                return {}
+
+        self._jobs.submit(
+            _read,
+            on_success=self._apply_cloud_values,
+            on_error=lambda _: None,
+        )
+
+    def _apply_cloud_values(self, values: dict) -> None:
+        if not shiboken6.isValid(self) or not values:
+            return
+        for name, value in values.items():
+            if value is not None:
+                self.update_value(name, value)
+
     # ---------- 提交（统一入口；name 必传，避免跨控件串扰） ----------
 
     def _commit_value(self, name: str, value, on_success=None) -> None:
@@ -340,6 +407,13 @@ class QuickOpsPopup(QFrame):
         if on_success is not None:
             on_success(value)  # 透传已写入的值（滑块回显 lambda 依赖它）
         self.setEnabled(True)
+        # 通知宿主：本面板写值成功，跨界面同步（托盘行/小组件等）
+        cb = self._change_cb
+        if cb is not None:
+            try:
+                cb(self._did, name, value)
+            except Exception:
+                pass
 
     def _on_write_error(self, error: Exception) -> None:
         if not shiboken6.isValid(self):

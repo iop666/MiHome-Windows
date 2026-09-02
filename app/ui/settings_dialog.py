@@ -359,21 +359,9 @@ class SettingsDialog(OverlayDialog):
             self._on_tray_icon_color_changed)
         color_row.addWidget(self._color_combo)
 
-        # ── 托盘单列模式产品图 ──
-        self._rowicon_item, self._rowicon_label, self._rowicon_desc, rowicon_row = \
-            self._make_item(
-                "托盘单列产品图",
-                "托盘切到单列显示时，设备行左侧展示产品图片（联网拉取一次后"
-                "本地缓存）；双列/常显模式不显示，默认关闭")
-        self._rowicon_toggle = themed_switch()
-        self._rowicon_toggle.setChecked(settings_store.get_tray_show_icons())
-        _sync_switch(self._rowicon_toggle)
-        rowicon_row.addWidget(self._rowicon_toggle)
-
         return self._build_scroll([
             self._tray_item, self._start_min_item,
             self._always_item, self._pos_item, self._color_item,
-            self._rowicon_item,
         ])
 
     def _build_features_page(self) -> QScrollArea:
@@ -844,7 +832,7 @@ class SettingsDialog(OverlayDialog):
         """主题相关内联样式：构造与 retheme 共用。"""
         panel_card = f"QFrame {{ background: {SiColors.CARD}; border-radius: 10px; }}"
         for item in (self._tray_item, self._start_min_item, self._always_item,
-                     self._pos_item, self._color_item, self._rowicon_item,
+                     self._pos_item, self._color_item,
                      self._fab_item,
                      self._theme_item, self._autostart_item,
                      self._speaker_item, self._hide_item, self._scale_item,
@@ -858,7 +846,6 @@ class SettingsDialog(OverlayDialog):
             f"color: {SiColors.TEXT_PRIMARY}; background: transparent;")
         for label in (self._tray_label, self._start_min_label,
                       self._always_label, self._pos_label, self._color_label,
-                      self._rowicon_label,
                       self._fab_label, self._theme_label,
                       self._autostart_label, self._speaker_label,
                       self._hide_label, self._scale_label,
@@ -868,7 +855,6 @@ class SettingsDialog(OverlayDialog):
                 f"color: {SiColors.TEXT_PRIMARY}; background: transparent; font-size: 10pt;")
         for desc in (self._tray_desc, self._start_min_desc,
                      self._always_desc, self._pos_desc, self._color_desc,
-                     self._rowicon_desc,
                      self._fab_desc, self._theme_desc,
                      self._autostart_desc, self._speaker_desc,
                      self._hide_desc, self._scale_desc, self._update_desc,
@@ -1021,8 +1007,6 @@ class SettingsDialog(OverlayDialog):
         if 0 <= color_idx < len(self._icon_color_options):
             settings_store.set_tray_icon_color(
                 self._icon_color_options[color_idx][0])
-        # 托盘单列产品图
-        settings_store.set_tray_show_icons(self._rowicon_toggle.isChecked())
         # 默认输出音箱：下拉文案反查 did；无音箱时被灰置为「自动」存空串
         idx = self._speaker_combo.currentIndex()
         if 0 <= idx < len(self._speaker_options):

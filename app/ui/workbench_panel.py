@@ -79,10 +79,14 @@ class _SpinCircle(QWidget):
 class WorkbenchPanel(QWidget):
     metrics_updated = Signal(str, str)
 
-    def __init__(self, service: MijiaService, jobs, parent=None):
+    def __init__(self, service: MijiaService, jobs, parent=None,
+                 on_value_written=None):
         super().__init__(parent)
         self._service = service
         self._jobs = jobs
+        # 写属性成功后的回调（did, name, value）：宿主注入，用于把新值
+        # 同步给托盘展开行/桌面小组件等其它入口
+        self._value_written_cb = on_value_written
         self._current_did: str | None = None
         self._current_online: bool = True
         self._detail: DeviceDetail | None = None
@@ -993,9 +997,19 @@ class WorkbenchPanel(QWidget):
         self._last_written_time[name] = now
         self._jobs.submit(
             lambda: self._service.write_prop(did, name, value),
-            on_success=lambda _: QTimer.singleShot(3000, lambda: self._read_single(prop, name)),
+            on_success=lambda _: self._after_value_written(did, name, value, prop),
             on_error=self._show_error,
         )
+
+    def _after_value_written(self, did: str, name: str, value: Any, prop) -> None:
+        """写值成功：3 秒后回读校准 + 通知宿主广播新值到其它入口。"""
+        QTimer.singleShot(3000, lambda: self._read_single(prop, name))
+        cb = getattr(self, "_value_written_cb", None)
+        if cb is not None:
+            try:
+                cb(did, name, value)
+            except Exception:
+                pass
 
     def _read_single(self, prop, name: str) -> None:
         if not prop.readable:

@@ -48,6 +48,7 @@ class TrayQuickWindow(QDialog):
     open_device_requested = Signal(str)  # did
     open_main_requested = Signal()
     power_changed = Signal(str, object)  # (did, new_state) 开关被本窗口改动
+    quick_value_changed = Signal(str, str, object)  # (did, 属性名, 新值)
 
     def __init__(self, service: MijiaService, jobs: JobExecutor, parent=None):
         super().__init__(parent)
@@ -67,11 +68,11 @@ class TrayQuickWindow(QDialog):
         self._list_view_h = 4 * 56 + 3 * 6
         # 结构指纹：set_devices 只在结构变化时才重建（轮询只做就地刷新）
         self._last_sig: object = None
-        # 单列模式产品图（设置项默认关闭）：model -> 缩放好的 QPixmap
-        self._icon_show: bool = settings_store.get_tray_show_icons()
-        self._row_icons: dict = {}
-        self._icon_pending: set[str] = set()
-        self._icon_fetching = False
+        # 展开行/常显行内调节弹层：did -> QuickOpsPopup（周期回读真实值）
+        self._quick_popups: dict[str, object] = {}
+        self._value_timer = QTimer(self)
+        self._value_timer.setInterval(4000)
+        self._value_timer.timeout.connect(self._refresh_open_quick_values)
 
         self.setWindowFlags(
             Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
@@ -529,10 +530,14 @@ class TrayQuickWindow(QDialog):
         super().showEvent(event)
         # 延迟安装，避免托盘那一下 MouseButtonPress 立刻又触发隐藏
         QTimer.singleShot(120, self._install_outside_filter)
+        # 展开的调节行在显示期间周期回读真实值
+        self._value_timer.start()
+        QTimer.singleShot(500, self._refresh_open_quick_values)
 
     def hideEvent(self, event) -> None:  # noqa: N802
         self._tray_visible = False
         self._typewriter.stop()
+        self._value_timer.stop()
         self._remove_outside_filter()
         super().hideEvent(event)
 
@@ -583,82 +588,6 @@ class TrayQuickWindow(QDialog):
             if btn is not None:
                 btn.set_state(st)
 
-    # ---------- 单列模式产品图（磁盘缓存命中即显，缺失异步拉一次） ----------
-
-    def _prime_row_icons(self) -> None:
-        import shiboken6
-
-        if not shiboken6.isValid(self):
-            return
-        if not (self._icon_show and self._columns == 1) or self._icon_fetching:
-            return
-        from app.core import icons as icon_cache
-
-        lookup = {d.did: d for d in self._devices}
-        seen: set[str] = set()
-        todo: list[str] = []
-        for did in self._tray_dids:
-            dev = lookup.get(did)
-            if dev is None or not dev.model or dev.model in seen:
-                continue
-            seen.add(dev.model)
-            if dev.model in self._row_icons:
-                continue
-            pix = icon_cache.load_pixmap(dev.model, 40)
-            if pix is not None:
-                self._row_icons[dev.model] = pix
-                self._apply_row_icon(dev.model, pix)
-                continue
-            if dev.model not in self._icon_pending:
-                self._icon_pending.add(dev.model)
-                todo.append(dev.model)
-        if not todo:
-            return
-        self._icon_fetching = True
-        self._jobs.submit(
-            lambda todo=todo: {
-                m: self._service.fetch_product_icon(m) for m in todo},
-            on_success=self._on_row_icons_fetched,
-            on_error=self._on_row_icons_failed,
-        )
-
-    def _on_row_icons_fetched(self, mapping: dict) -> None:
-        import shiboken6
-
-        if not shiboken6.isValid(self):
-            return
-        self._icon_fetching = False
-        from app.core import icons as icon_cache
-
-        for model, data in (mapping or {}).items():
-            self._icon_pending.discard(model)
-            if not data:
-                continue
-            if icon_cache.save_bytes(model, data):
-                pix = icon_cache.load_pixmap(model, 40)
-                if pix is not None:
-                    self._row_icons[model] = pix
-                    self._apply_row_icon(model, pix)
-
-    def _on_row_icons_failed(self, error: Exception) -> None:
-        self._icon_fetching = False
-        self._icon_pending.clear()
-
-    def _apply_row_icon(self, model: str, pixmap) -> None:
-        import shiboken6
-
-        lookup = {d.did: d for d in self._devices}
-        for did in self._tray_dids:
-            dev = lookup.get(did)
-            if dev is None or dev.model != model:
-                continue
-            row = self._rows_by_did.get(did)
-            if row is None or not shiboken6.isValid(row):
-                continue
-            lab = getattr(row, "_icon_lab", None)
-            if lab is not None and shiboken6.isValid(lab):
-                lab.setPixmap(pixmap)
-
     # ---------- 列表重建（网格 / 展开竖排） ----------
 
     def _rebuild(self) -> None:
@@ -695,10 +624,6 @@ class TrayQuickWindow(QDialog):
         # 竖排（常显或手动展开）按内容放大可视区
         if always_mode or self._expanded:
             QTimer.singleShot(120, self._fit_expanded_view)
-        # 单列网格 + 开启产品图：重建后补拉缺失型号的图片
-        if self._icon_show and not always_mode and not self._expanded \
-                and self._columns == 1:
-            QTimer.singleShot(40, self._prime_row_icons)
 
     def _build_grid(self, cards: list[DeviceInfo]) -> None:
         """紧凑网格视图（原单/双列卡片），行头可点击展开。"""
@@ -754,6 +679,9 @@ class TrayQuickWindow(QDialog):
             popup = QuickOpsPopup(
                 self._service, self._jobs, dev, parent=body,
                 inline=True, show_header=False, op_names=names)
+            # 登记展开行调节弹层：周期回读真实值 + 写值后跨界面广播
+            self._quick_popups[dev.did] = popup
+            popup._change_cb = self._value_cb_for(dev.did)
             if always_mode:
                 # 常显模式：无可用项时安静移除该行展开体，不打断整体
                 def _empty_body(b=body):
@@ -791,6 +719,7 @@ class TrayQuickWindow(QDialog):
         self._rows_by_did.clear()
         self._sub_labels.clear()
         self._sub_widths.clear()
+        self._quick_popups.clear()
         while self._list_lay.count():
             item = self._list_lay.takeAt(0)
             if w := item.widget():
@@ -848,20 +777,6 @@ class TrayQuickWindow(QDialog):
         lay = QHBoxLayout(row)
         lay.setContentsMargins(12, 8, 12, 8)
         lay.setSpacing(10)
-
-        # 单列模式 + 开启产品图：设备行左侧显示产品图（自动缩放适应行高）
-        icon_lab = None
-        if self._icon_show and not always_mode and not compact \
-                and self._columns == 1 and dev.model:
-            icon_lab = QLabel()
-            icon_lab.setObjectName("trayDevIcon")
-            icon_lab.setFixedSize(40, 40)
-            icon_lab.setAlignment(Qt.AlignCenter)
-            icon_lab.setStyleSheet("background: transparent; border: none;")
-            pix = self._row_icons.get(dev.model)
-            if pix is not None:
-                icon_lab.setPixmap(pix)
-            lay.addWidget(icon_lab, 0, Qt.AlignVCenter)
 
         known = self._known_power.get(dev.did)
         if avail is None:
@@ -933,7 +848,6 @@ class TrayQuickWindow(QDialog):
             lay.addWidget(btn)
         row._did = dev.did  # type: ignore[attr-defined]
         row._power_btn = btn  # type: ignore[attr-defined]
-        row._icon_lab = icon_lab  # type: ignore[attr-defined]
 
         row.mousePressEvent = (  # type: ignore[attr-defined]
             lambda e, d=dev.did: self.open_device_requested.emit(d)
@@ -947,6 +861,46 @@ class TrayQuickWindow(QDialog):
         btn.set_state(ns)
         btn.set_busy(False)
         self.power_changed.emit(did, ns)
+
+    # ---------- 展开行调节值：本地就地刷新 + 跨界面广播 ----------
+
+    def _value_cb_for(self, did: str):
+        """QuickOpsPopup 写值成功回调：就地显示 + 广播给主窗口/小组件。"""
+
+        def cb(d, name, value):
+            self.apply_quick_value(d, name, value)
+            try:
+                self.quick_value_changed.emit(d, name, value)
+            except Exception:
+                pass
+
+        return cb
+
+    def apply_quick_value(self, did: str, name: str, value) -> None:
+        """外部值变化后刷新本窗口展开行内对应控件（不重建）。"""
+        import shiboken6
+
+        popup = self._quick_popups.get(did)
+        if popup is None or not shiboken6.isValid(popup):
+            return
+        try:
+            popup.update_value(name, value)
+        except Exception:
+            pass
+
+    def _refresh_open_quick_values(self) -> None:
+        """展开/常显的调节行定期回读当前真实值（设备端/别处改动同步）。"""
+        import shiboken6
+
+        if not (self.isVisible() or self.is_explicitly_visible()):
+            return
+        for did, popup in list(self._quick_popups.items()):
+            if popup is None or not shiboken6.isValid(popup):
+                continue
+            try:
+                popup.refresh_from_cloud()
+            except Exception:
+                continue
 
     def show_near_tray(self, anchor_global: QPoint | None = None) -> None:
         """托盘图标/鼠标位置（可选）呼出；显示前重建以保证托盘存储一致。"""
@@ -995,22 +949,33 @@ class TrayQuickWindow(QDialog):
         # 避免显示后再 resize 造成闪烁
         self._sync_tray_height()
         from PySide6.QtGui import QGuiApplication
-        screen = QGuiApplication.primaryScreen()
+        anchor = getattr(self, "_open_anchor", None)
+        if anchor is not None:
+            # 用锚点所在屏幕计算可用区：多显示器/缩放不一致时不会跑偏
+            screen = QGuiApplication.screenAt(anchor)
+        else:
+            screen = None
+        if screen is None:
+            screen = QGuiApplication.primaryScreen()
         if screen is None:
             target = self.pos()
         else:
             geo = screen.availableGeometry()
             mode = settings_store.get_tray_position()
             if (mode == settings_store.TRAY_POS_CURSOR
-                    and getattr(self, "_open_anchor", None) is not None):
-                # 跟随鼠标/托盘图标：窗口贴锚点上方（右对齐锚点），
-                # 上方放不下（如任务栏在屏幕顶端）时改放锚点下方
-                ax = self._open_anchor.x()
-                ay = self._open_anchor.y()
+                    and anchor is not None):
+                ax = anchor.x()
+                ay = anchor.y()
                 x = ax - self.width() + 20
-                y = ay - self.height() - 12
-                if y < geo.top() + 8:
-                    y = ay + 12
+                if ay >= geo.top() + geo.height() * 0.5:
+                    # 锚点在屏幕下半（任务栏常贴底）：窗口底部贴近可用区
+                    # 下缘（即任务栏上方），设备少、窗口矮时也不会浮到高处
+                    y = geo.bottom() - self.height() - 6
+                else:
+                    # 任务栏在屏幕顶端等场景：贴锚点上方，放不下才转下方
+                    y = ay - self.height() - 12
+                    if y < geo.top() + 8:
+                        y = ay + 12
                 x = max(geo.left() + 8,
                         min(x, geo.right() - self.width() - 8))
                 y = max(geo.top() + 8,

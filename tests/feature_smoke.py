@@ -210,6 +210,20 @@ assert fake_svc.last_write == ("brightness", 80), fake_svc.last_write
 assert popup.isEnabled(), "提交完成后应恢复可用"
 print("5c. 滑块提交回执 OK")
 
+# 5d. 外部值同步：update_value 就地刷新 + 写值后通知宿主广播
+_seen = []
+popup._change_cb = lambda d, n, v: _seen.append((d, n, v))
+popup.update_value("brightness", 88)
+app.processEvents()
+assert sliders[0].value() == 88, sliders[0].value()
+fake_svc.last_write = None
+_seen.clear()
+popup._commit_value("brightness", 77)
+app.processEvents()
+assert fake_svc.last_write == ("brightness", 77)
+assert _seen == [("942167279", "brightness", 77)], _seen
+print("5d. 展开项外部值同步/写值广播 OK")
+
 # ---------- 6. 场景对话框（安全模式禁用态） ----------
 from app.core.safety import get_guard
 assert get_guard().enabled  # 上面已重置 MIWU_SAFE_DEVICE，首调即启用

@@ -960,6 +960,22 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
 
+    def apply_quick_value_external(self, did: str, name: str, value) -> None:
+        """小组件写了一个可调项后，把新值同步给托盘展开行（若有）。"""
+        if self._tray is not None:
+            try:
+                self._tray.push_quick_value(did, name, value)
+            except Exception:
+                pass
+
+    def _broadcast_quick_value_written(self, did: str, name: str, value) -> None:
+        """详情工作台写属性成功：把新值同步给小组件/托盘展开行。"""
+        if self._widget_mgr is not None:
+            try:
+                self._widget_mgr.broadcast_quick_value(did, name, value)
+            except Exception:
+                pass
+
     def _refresh_metrics(self) -> None:
         """为无开关能力的可见设备批量拉温湿度读数（副标题展示）。
 
@@ -1397,7 +1413,9 @@ class MainWindow(QMainWindow):
         device = next((d for d in self._all_devices if d.did == did), None)
         if device is None:
             return
-        dialog = DeviceDetailDialog(self._service, self._jobs, device, self)
+        dialog = DeviceDetailDialog(
+            self._service, self._jobs, device, self,
+            on_value_written=self._broadcast_quick_value_written)
         # 详情内取到温湿度后直接回写卡片与缓存（手动刷新的即时反馈）
         dialog.panel.metrics_updated.connect(self._on_detail_metrics)
         dialog.load()

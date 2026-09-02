@@ -48,6 +48,9 @@ class TrayController:
         act_settings.triggered.connect(self._on_settings)
         menu.addAction(act_settings)
         menu.addSeparator()
+        act_restart = QAction("重启应用", menu)
+        act_restart.triggered.connect(self._restart_app)
+        menu.addAction(act_restart)
         act_quit = QAction("退出", menu)
         act_quit.triggered.connect(self._quit)
         menu.addAction(act_quit)
@@ -96,6 +99,8 @@ class TrayController:
         self._quick.open_main_requested.connect(self._show_main)
         # 托盘里点开关后立即同步主窗口卡片/记忆与桌面小组件
         self._quick.power_changed.connect(self._on_quick_power_changed)
+        # 托盘展开行写调节值：同步给桌面小组件展开行
+        self._quick.quick_value_changed.connect(self._on_quick_value_changed)
 
     def _on_quick_power_changed(self, did: str, state) -> None:
         """托盘快捷行开关改动：主窗口记忆/卡片 + 桌面小组件即时同步。"""
@@ -110,6 +115,35 @@ class TrayController:
                 mgr.broadcast_power(did, state)
             except Exception:
                 pass
+
+    def _on_quick_value_changed(self, did: str, name: str, value) -> None:
+        """托盘展开行写调节值：同步到桌面小组件的展开行。"""
+        mgr = getattr(self._main, "_widget_mgr", None)
+        if mgr is not None:
+            try:
+                mgr.update_widget_quick_value(did, name, value)
+            except Exception:
+                pass
+
+    def push_quick_value(self, did: str, name: str, value) -> None:
+        """主窗口/小组件写值后把新值同步进托盘展开行（若有）。"""
+        try:
+            self._quick.apply_quick_value(did, name, value)
+        except Exception:
+            pass
+
+    def _restart_app(self) -> None:
+        """托盘右键「重启应用」：先标记强制退出再启动新进程。"""
+        try:
+            self._tray.hide()
+        except Exception:
+            pass
+        try:
+            self._main._force_quit = True  # 防止 closeEvent 拦截为隐藏到托盘
+        except Exception:
+            pass
+        from app.ui.restart import restart_app
+        restart_app()
 
     def _emit_manage(self) -> None:
         # 经方法转发而非构造期绑定信号：retheme 重建窗口后菜单仍指向新窗口
@@ -167,10 +201,21 @@ class TrayController:
         if dev is None:
             return
         from app.ui.device_dialog import DeviceDetailDialog
-        dlg = DeviceDetailDialog(self._service, self._jobs, dev, None)
+        dlg = DeviceDetailDialog(
+            self._service, self._jobs, dev, None,
+            on_value_written=self._broadcast_detail_value_written)
         dlg.load()
         dlg.exec()
         dlg.deleteLater()
+
+    def _broadcast_detail_value_written(self, did: str, name: str, value) -> None:
+        """托盘打开的详情里写属性：同步给桌面小组件展开行。"""
+        mgr = getattr(self._main, "_widget_mgr", None)
+        if mgr is not None:
+            try:
+                mgr.broadcast_quick_value(did, name, value)
+            except Exception:
+                pass
 
     def set_devices(self, devices: list[DeviceInfo], known_power: dict[str, bool | None]) -> None:
         self._quick.set_devices(devices, known_power)
