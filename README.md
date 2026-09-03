@@ -16,6 +16,13 @@
 > （扫码登录、设备列表与常用控制、托盘、小组件、小爱语音等）已无大碍，
 > 需适配更多设备功能则依赖社区支持。
 
+## 下载（Releases）
+
+| 版本 | 附件下载 |
+|------|----------|
+| **custom 版 v0.2.1（正式版）** — [Releases](https://github.com/iop666/MiHome-Windows/releases/tag/v0.2.1) | [MiHome-Windows-custom-0.2.1-portable.zip](https://github.com/iop666/MiHome-Windows/releases/download/v0.2.1/MiHome-Windows-custom-0.2.1-portable.zip) ／ [MiHome-Windows-custom-0.2.1-setup.exe](https://github.com/iop666/MiHome-Windows/releases/download/v0.2.1/MiHome-Windows-custom-0.2.1-setup.exe) |
+| **custom-mock 0.2.1（模拟设备测试版）** — [Releases](https://github.com/iop666/MiHome-Windows/releases/tag/mock-0.2.1) | [MiHome-Windows-custom-mock-0.2.1-portable.zip](https://github.com/iop666/MiHome-Windows/releases/download/mock-0.2.1/MiHome-Windows-custom-mock-0.2.1-portable.zip) |
+
 ## 关于本分支
 
 本分支（fork）的**开发与发布过程均由 DeepSeek Harness 协助完成**。
