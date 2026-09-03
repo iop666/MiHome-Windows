@@ -15,12 +15,7 @@
 
 ## 关于本分支的开发与构建
 
-本分支（fork）的**整个开发与发布过程均由 DeepSeek Harness 完成**：从功能
-需求到代码实现（桌面小组件、托盘增强、主题与产品图、跨界面状态同步等）、
-与上游仓库的合并与冲突解决、Windows 便携版（Nuitka standalone）与安装版
-（Inno Setup）的构建与打包，再到 GitHub Releases 的发布说明与资产上传，
-全程由 **DeepSeek Harness**（DeepSeek 编码智能体）在作者的指令与验证指导下
-完成；作者负责需求确认、真机测试与最终验收。
+本分支（fork）的**整个开发与发布过程均由 DeepSeek Harness 完成**
 
 ## 与原版的差异
 
