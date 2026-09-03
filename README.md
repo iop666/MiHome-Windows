@@ -38,12 +38,21 @@
 
 ### 主界面与设备卡片
 
+|示例1|示例2|示例3|
+|---|---|---|
+| <img width="288" height="180" alt="2026-09-04 01-15-39" src="https://github.com/user-attachments/assets/0cb051c7-4a42-45bb-a0e9-27b97f463f34" /> | <img width="288" height="180" alt="2026-09-04 01-15-39_1" src="https://github.com/user-attachments/assets/7a7f2ec0-1ec3-4ba1-8e77-72998f952705" /> | <img width="288" height="180" alt="2026-09-04 01-15-39_2" src="https://github.com/user-attachments/assets/ae1c97f4-64e3-4839-b4d0-48dfd889b9c9" /> |
+
 - 设备卡片**右键拖拽排序**：拖动时其余卡片动画让位、窗口边缘自动滚动，
   松开即落位，顺序写入用户数据目录；设置页可撤销/恢复每次移动，也可一键
   恢复默认排序（家庭/房间分组由云端决定）；
 - 卡片显示产品图与在线状态，支持隐藏无功能设备、快捷操作弹层等。
 
 ### 设备详情页（工作台）
+
+| 示例 |
+| :---: |
+| <img width="600" height="172" alt="image" src="https://github.com/user-attachments/assets/37ba6130-5521-422b-b040-c6b6ac490bf1" /> |
+| <img width="600" height="232" alt="image" src="https://github.com/user-attachments/assets/8f935c76-afcc-413d-bd22-fc27e9f275e1" /> |
 
 - 属性项数值补全单位后缀（亮度 `%`、色温 `K`、温度 `°C`、湿度 `%`、
   功率 `W` 等，无法确定的单位不加）；
@@ -60,6 +69,10 @@
 
 ### 桌面小组件
 
+| 示例 |
+| :---: |
+| <img width="600" height="719" alt="image" src="https://github.com/user-attachments/assets/9e20051b-ddfd-434b-bdf1-34395bdb564f" /> |
+
 - 把单个或多个设备「固定到桌面」的常驻小组件：只显示设备控件、无标题栏；
 - 多设备可合并在一个小组件里，每台设备可**自选展开哪些调节控件**（亮度/
   色温/模式等），全部不选则只留开关行；
@@ -69,6 +82,10 @@
 - 开关状态与调节值随主窗口/托盘/详情页**实时同步**，并周期回读云端真实值。
 
 ### 系统托盘
+
+| 示例1 | 示例2 |
+| :---: | :---: |
+| <img width="446" height="640" alt="image" src="https://github.com/user-attachments/assets/d295f909-bacb-4349-aa1a-48cff98be58e" /> | <img width="382" height="640" alt="image" src="https://github.com/user-attachments/assets/87ca2777-24de-4312-a222-f550d912ef10" /> |
 
 - 托盘快捷窗口的单列/双列卡片切换**沿用原版**；本版调整：双列网格下隐藏
   行内「调节」按钮（需要调节时切到单列再展开），并修复托盘重建时新旧行
