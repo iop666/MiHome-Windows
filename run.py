@@ -87,7 +87,11 @@ def main() -> int:
     # 自重启（MIHOME_RESTARTED=1）时跳过：旧进程即将退出，
     # 此时锁/server 尚在，走正常单实例会被当成「唤起旧窗口」。
     server = None
-    if os.environ.get("MIHOME_RESTARTED") != "1":
+    # 虚拟测试家庭（MIWU_MOCK_DEVICES）总是另起独立实例：即使用户
+    # 托盘里还驻留着真实模式的旧实例，双击 run-mock-test.bat 也能看到
+    # 测试设备，而不会被单实例机制“唤起旧窗口”吞掉
+    if (os.environ.get("MIHOME_RESTARTED") != "1"
+            and not os.environ.get("MIWU_MOCK_DEVICES")):
         lock_path = os.path.join(tempfile.gettempdir(), _LOCK_NAME)
         lock = QLockFile(lock_path)
         # 默认 30s 视为过期，若上次崩溃残留可自动接管

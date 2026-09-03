@@ -607,6 +607,11 @@ class MainWindow(QMainWindow):
         """
         self._poll_timer.start()
         self._metrics_timer.start()
+        if getattr(self._service, "is_mock", False):
+            # 虚拟测试家庭：不读本地真实设备缓存（否则会先显示上次真实
+            # 登录留下的旧设备，误以为没加载测试包），直接在线加载 mock
+            self.load_devices()
+            return
         cached = device_cache.load()
         if cached is None:
             self.load_devices()
@@ -649,7 +654,9 @@ class MainWindow(QMainWindow):
         # 对比要在替换前做：added/removed 以旧列表为基准
         added, removed = self._diff_devices(devices)
         self._apply_devices(devices)
-        device_cache.save(devices, self._known_power, self._metrics)
+        if not getattr(self._service, "is_mock", False):
+            # 虚拟测试家庭不写设备缓存：避免污染真实模式下次启动的缓存
+            device_cache.save(devices, self._known_power, self._metrics)
         if self._all_devices or added or removed:
             Toast.info(self, _refresh_summary(len(devices), added, removed))
 
