@@ -18,10 +18,10 @@
 
 ## 下载（Releases）
 
-| 版本 | 附件下载 |
-|------|----------|
-| **custom 版 v0.2.1（正式版）** — [Releases](https://github.com/iop666/MiHome-Windows/releases/tag/v0.2.1) | [MiHome-Windows-custom-0.2.1-portable.zip](https://github.com/iop666/MiHome-Windows/releases/download/v0.2.1/MiHome-Windows-custom-0.2.1-portable.zip) ／ [MiHome-Windows-custom-0.2.1-setup.exe](https://github.com/iop666/MiHome-Windows/releases/download/v0.2.1/MiHome-Windows-custom-0.2.1-setup.exe) |
-| **custom-mock 0.2.1（模拟设备测试版）** — [Releases](https://github.com/iop666/MiHome-Windows/releases/tag/mock-0.2.1) | [MiHome-Windows-custom-mock-0.2.1-portable.zip](https://github.com/iop666/MiHome-Windows/releases/download/mock-0.2.1/MiHome-Windows-custom-mock-0.2.1-portable.zip) |
+| 版本 | 说明 | 附件下载 |
+|------|------|----------|
+| **custom 版 v0.2.1（正式版）** — [Releases](https://github.com/iop666/MiHome-Windows/releases/tag/v0.2.1) | 含便携版 + 安装版 | [MiHome-Windows-custom-0.2.1-portable.zip](https://github.com/iop666/MiHome-Windows/releases/download/v0.2.1/MiHome-Windows-custom-0.2.1-portable.zip) ／ [MiHome-Windows-custom-0.2.1-setup.exe](https://github.com/iop666/MiHome-Windows/releases/download/v0.2.1/MiHome-Windows-custom-0.2.1-setup.exe) |
+| **custom-mock 0.2.1（模拟设备测试版）** — [Releases](https://github.com/iop666/MiHome-Windows/releases/tag/mock-0.2.1) | 264 台 / 66 小类虚拟家庭，完全离线 | [MiHome-Windows-custom-mock-0.2.1-portable.zip](https://github.com/iop666/MiHome-Windows/releases/download/mock-0.2.1/MiHome-Windows-custom-mock-0.2.1-portable.zip) |
 
 ## 关于本分支
 
