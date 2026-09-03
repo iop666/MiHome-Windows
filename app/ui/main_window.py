@@ -1,0 +1,1702 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# MiHome-Windows: 米家设备的 Windows 桌面控制端
+# Copyright (C) 2026 MiHome-Windows contributors
+"""主窗口：米家 APP 风格的深色卡片视图。
+
+顶部为家庭名与房间筛选 tab，中部是设备卡片网格（列数随窗口宽度
+自适应）。卡片电源钮提供快速开关：设备列表接口不含开关状态，
+首次点击先经详情接口确认能力，再读取当前值取反写入，成功后
+把真实状态回填到卡片；点击卡片本体打开详情对话框。
+"""
+
+import ctypes
+import ctypes.wintypes as wintypes
+import logging
+import sys
+
+import shiboken6
+from PySide6.QtCore import QEvent, QPropertyAnimation, QPoint, QSize, Qt, QTimer
+from PySide6.QtWidgets import QGraphicsOpacityEffect
+from PySide6.QtGui import QAction, QIcon, QPixmap
+from PySide6.QtWidgets import (
+    QDialog,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QMenu,
+    QMainWindow,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
+from app.siui.components.button import SiToggleButtonRefactor
+
+import qtawesome as qta
+
+from app.core import cache as device_cache
+from app.core import device_names
+from app.core.jobs import JobExecutor
+from app.core.models import DeviceInfo, is_speaker
+from app.core.service import MijiaService
+from app.ui.device_card import DeviceCard
+from app.ui.device_dialog import DeviceDetailDialog
+from app.ui.device_grid import DeviceGrid
+from app.ui.si_theme import SiColors, themed_tab_button
+from app.ui.toast import Toast
+from app.ui.tray import TrayController, TrayManagerDialog
+from app.ui.voice_fab import VoiceFab
+from app.ui.settings_dialog import SettingsDialog
+
+logger = logging.getLogger(__name__)
+
+_ALL_ROOMS = "全屋"
+_ALL_HOMES = "全部"
+
+# 外部（APP/语音）改状态后卡片靠轮询跟随；批量读一次请求
+_POLL_INTERVAL_MS = 4_000
+_METRICS_INTERVAL_MS = 5 * 60 * 1000
+# 卡片顺序撤销栈上限（一次拖拽落位/一次恢复默认 = 一步）
+_ORDER_HISTORY_MAX = 50
+
+
+def _refresh_summary(total: int, added: int, removed: int) -> str:
+    """刷新结果通知文案：有增减报增减，无变化明确告知。"""
+    if not added and not removed:
+        return f"设备列表无变化（共 {total} 台）"
+    if added and removed:
+        return f"本次刷新：新增 {added} 台，移除 {removed} 台"
+    if added:
+        return f"本次刷新：新增 {added} 台设备"
+    return f"本次刷新：移除 {removed} 台设备"
+
+# 无边框窗口的边缘拖拽热区宽度（像素）
+_RESIZE_MARGIN = 8
+
+# Windows 原生窗口消息与命中测试代码
+_WM_NCCALCSIZE = 0x0083
+_WM_NCHITTEST = 0x0084
+_WM_GETMINMAXINFO = 0x0024
+_HTCLIENT = 1
+_HTCAPTION = 2
+_HTLEFT = 10
+_HTRIGHT = 11
+_HTTOP = 12
+_HTTOPLEFT = 13
+_HTTOPRIGHT = 14
+_HTBOTTOM = 15
+_HTBOTTOMLEFT = 16
+_HTBOTTOMRIGHT = 17
+_MONITOR_DEFAULTTONEAREST = 0x00000002
+
+
+# WM_GETMINMAXINFO / GetMonitorInfo 用的 Win32 结构（x64 下指针必须
+# 显式声明，否则按 c_int 截断导致取不到正确的显示器工作区）
+class _WinRect(ctypes.Structure):
+    _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long),
+                ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
+
+
+class _MonitorInfo(ctypes.Structure):
+    _fields_ = [("cbSize", ctypes.c_ulong), ("rcMonitor", _WinRect),
+                ("rcWork", _WinRect), ("dwFlags", ctypes.c_ulong)]
+
+
+class _MinMaxInfo(ctypes.Structure):
+    _fields_ = [("ptReserved", wintypes.POINT), ("ptMaxSize", wintypes.POINT),
+                ("ptMaxPosition", wintypes.POINT),
+                ("ptMinTrackSize", wintypes.POINT),
+                ("ptMaxTrackSize", wintypes.POINT)]
+
+
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        # 装配服务：MIWU_MOCK_DEVICES=<测试包> 时进入虚拟测试家庭模式
+        from app.core.mock_devices import create_service
+        self._service = create_service()
+        self._jobs = JobExecutor(self)
+
+        from app import resource_path
+        self.setWindowIcon(QIcon(str(resource_path("app/ui/icon.png"))))
+        if getattr(self._service, "is_mock", False):
+            self.setWindowTitle("米家 - MiHome for Windows（custom 版 · 虚拟测试家庭）")
+        else:
+            self.setWindowTitle("米家 - MiHome for Windows（custom 版）")
+        # 保持原生窗口框架，通过拦截 WM_NCCALCSIZE 抹掉系统标题栏区域：
+        # 拖动/双击最大化/最小化动画/Aero Snap/边缘缩放全部由系统原生处理
+        self.setWindowFlags(Qt.Window)
+        # 默认窗口尺寸在首次显示时按真实 DPR 应用（见 showEvent）：
+        # 构造期窗口未创建，DPR 读数不可靠（曾导致默认尺寸放大一圈）
+        self._default_size_applied = False
+        self.setMinimumSize(760, 520)
+
+        self._all_devices: list[DeviceInfo] = []
+        self._cards: dict[str, DeviceCard] = {}
+        self._homes: list[str] = []
+        self._current_home: str = ""
+        self._current_room = _ALL_ROOMS
+        self._settings_dialog: SettingsDialog | None = None
+        # did -> 开关状态记忆；None 表示确认无开关能力。
+        # 探测结论是设备的固有属性，跨家庭/房间/刷新复用；
+        # 串行队列 FIFO 保证探测与开关写入的回调顺序不会互相覆盖
+        self._known_power: dict[str, bool | None] = {}
+        # did -> 环境读数文案（温湿度），随轮询更新、随网格重建回填
+        self._metrics: dict[str, str | None] = {}
+        # did -> 排队等待执行的开关点击次数（忙碌期点击不再被吞，逐次串行）
+        self._power_pending: dict[str, int] = {}
+        # 产品图：model -> QPixmap（磁盘缓存命中/异步拉取后），重建卡片回填
+        self._card_pix: dict = {}
+        self._icon_pending: set[str] = set()
+        # 会话内确认无图/拉取失败的型号（避免每次视图变化都重试打网络）；
+        # 产品图开关从关再开时清空，允许重新尝试
+        self._icon_failed: set[str] = set()
+        self._icon_fetching = False
+        from app.core.settings_store import get_card_width, get_show_device_icons
+        self._card_w = get_card_width()
+        self._show_icons = get_show_device_icons()
+        # 刷新防重入：请求在途时忽略再次点击
+        self._loading_devices = False
+        # 启动自动检查更新每次进程只做一次，避免 start 被重复触发
+        self._update_check_done = False
+        # 轮询防重入：上一轮批量读取未返回时跳过本轮定时触发
+        self._poll_in_flight = False
+        # 网格重排防抖：拖动窗口会触发密集 resizeEvent，动画排布比
+        # 整批重建轻，仍等布局稳定后再校正列数（网格自管理）
+        # 托盘常驻内存优化：窗口隐藏期间不构建卡片网格（数十个
+        # 卡片控件 + 样式约占 20-30MB），标记脏位、首次显示时构建
+        self._grid_dirty = False
+        # 隐藏无可控制功能的设备（设置开关，默认关）
+        from app.core.settings_store import get_hide_no_func_devices
+        self._hide_no_func = get_hide_no_func_devices()
+        # 设备卡片自定义顺序：None = 默认排序（在线优先+名称）。
+        # 用户右键拖拽卡片调整顺序后生成，并持久化到本地缓存
+        self._custom_order: list[str] | None = None
+        # 设备显示名覆盖（主界面重命名）：did -> {"name": 覆盖名, "orig": 默认名}
+        self._name_overrides: dict[str, dict] = device_names.load()
+        # 顺序操作历史：撤销/恢复（一次拖拽落位或一次“恢复默认”为一步）
+        self._order_undo: list[list[str] | None] = []
+        self._order_redo: list[list[str] | None] = []
+        # 产品页名称回退的异步查询防重入
+        self._localize_busy = False
+        # DPI 变化时恢复期望逻辑尺寸：Qt 在缩放变化后保持物理尺寸
+        # （逻辑尺寸被重算），窗口会显得偏大且底部留白；这里记住
+        # 用户视角的逻辑尺寸，变化后恢复，让窗口跟随元素一起缩放
+        self._expected_logical: tuple[int, int] | None = None
+        self._last_dpr: float | None = None
+        self._resize_timer = QTimer(self)
+        self._resize_timer.setSingleShot(True)
+        self._resize_timer.setInterval(60)
+        self._resize_timer.timeout.connect(self._on_resize_settled)
+        self._poll_timer = QTimer(self)
+        self._poll_timer.setInterval(_POLL_INTERVAL_MS)
+        self._poll_timer.timeout.connect(self._on_poll_tick)
+        self._metrics_timer = QTimer(self)
+        self._metrics_timer.setInterval(_METRICS_INTERVAL_MS)
+        self._metrics_timer.timeout.connect(self._refresh_metrics)
+        self._metrics_timer.timeout.connect(self._push_tray_metrics)
+
+        # 右下角小爱语音悬浮球：设备列表里存在小爱音箱才显示
+        self._voice_fab = VoiceFab(self)
+        self._voice_fab.submitted.connect(self._on_voice_command)
+        self._voice_did: str | None = None
+
+        # 主题控制器：跟随系统模式下监听系统配色变化
+        from app.ui import si_theme as _si_theme_mod
+        from app.ui.theme_service import ThemeController
+        self._theme_ctrl = ThemeController()
+        self._si_theme_mod = _si_theme_mod
+        self._theme_ctrl.theme_changed.connect(self._on_theme_changed)
+        # 托盘图标跟系统配色（任务栏底色由系统决定），独立于应用主题
+        self._theme_ctrl.system_scheme_changed.connect(self._on_system_scheme_changed)
+
+        # 系统托盘：左键快捷窗口，默认空需用户自主添加
+        self._force_quit = False
+        try:
+            self._tray = TrayController(self._service, self._jobs, self)
+            from app.core.settings_store import get_minimize_to_tray
+            self._tray.set_tray_visible(get_minimize_to_tray())
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            print(f"[Tray] 创建失败: {e}")
+            self._tray = None
+
+        # 小组件：随启动恢复，经设置页「小组件」管理
+        self._widget_mgr = None
+        try:
+            from app.ui.widget_manager import WidgetManager
+            self._widget_mgr = WidgetManager(self._service, self._jobs, self)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            print(f"[Widget] 创建失败: {e}")
+            self._widget_mgr = None
+
+        root = QVBoxLayout()
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        # ---- 内嵌标题栏（无边框窗口的拖动/窗口控制区） ----
+        root.addWidget(self._build_title_bar())
+
+        body = QHBoxLayout()
+        body.setContentsMargins(0, 0, 0, 0)
+        body.setSpacing(0)
+
+        content = QVBoxLayout()
+        content.setContentsMargins(24, 16, 24, 8)
+        content.setSpacing(10)
+
+        # ---- 顶栏：家庭切换器 + 刷新 ----
+        top_bar = QHBoxLayout()
+        # 家庭名是下拉切换器，多家庭账号按米家 APP 的方式隔离展示
+        self._home_btn = QPushButton("我的家庭")
+        self._home_btn.setObjectName("homeSwitcher")
+        self._home_btn.setCursor(Qt.PointingHandCursor)
+        self._home_btn.clicked.connect(self._show_home_menu)
+        top_bar.addWidget(self._home_btn)
+        self._count_label = QLabel()
+        self._count_label.setObjectName("deviceCountLabel")
+        top_bar.addWidget(self._count_label)
+        top_bar.addStretch(1)
+        # 更多菜单按钮：收起托盘管理、刷新等低频操作
+        self._more_menu = QMenu()
+        self._refresh_action = QAction("刷新", self._more_menu)
+        self._refresh_action.triggered.connect(self.load_devices)
+        self._more_menu.addAction(self._refresh_action)
+        self._more_menu.addAction("米家场景").triggered.connect(self.show_scenes)
+        self._more_menu.addAction("托盘管理").triggered.connect(self.show_tray_manager)
+        self._more_menu.addAction("设置").triggered.connect(self.show_settings)
+        # 「关于」固定在菜单最底部
+        self._more_menu.addSeparator()
+        self._more_menu.addAction("关于").triggered.connect(self.show_about)
+        self._more_btn = QPushButton()
+        self._more_btn.setIconSize(QSize(22, 22))
+        self._more_btn.setFixedSize(36, 36)
+        self._more_btn.setCursor(Qt.PointingHandCursor)
+        self._more_btn.clicked.connect(self._show_more_menu)
+        btn_wrapper = QWidget()
+        btn_wrapper.setStyleSheet("background: transparent;")
+        btn_layout = QHBoxLayout(btn_wrapper)
+        btn_layout.setContentsMargins(0, 30, 25, 0)
+        btn_layout.addWidget(self._more_btn)
+        top_bar.addWidget(btn_wrapper)
+        content.addLayout(top_bar)
+
+        # ---- 房间 tab 行 ----
+        self._tab_row = QHBoxLayout()
+        self._tab_row.setSpacing(14)
+        self._tab_buttons: dict[str, SiToggleButtonRefactor] = {}
+        content.addLayout(self._tab_row)
+
+        # ---- 卡片滚动区 ----
+        self._scroll = QScrollArea()
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setFrameShape(QFrame.NoFrame)
+        # 动画网格：列数随宽度自适应、右键拖拽排序（代替 QGridLayout）。
+        # 网格只在重建时整批替换卡片，拖动/缩放由网格内部做位移动画
+        self._grid = DeviceGrid()
+        self._grid_host = self._grid  # 别名：整体淡入等效果仍作用于网格容器
+        self._grid.order_committed.connect(self._on_grid_order_committed)
+        self._grid.drag_finished.connect(self._on_grid_drag_finished)
+        self._scroll.setWidget(self._grid)
+        content.addWidget(self._scroll, stretch=1)
+
+        content_host = QWidget()
+        content_host.setObjectName("contentHost")
+        content_host.setLayout(content)
+        body.addWidget(content_host, stretch=1)
+        root.addLayout(body)
+
+        container = QWidget()
+        container.setLayout(root)
+        self.setCentralWidget(container)
+
+        self._status_timer = QTimer(self)
+        self._status_timer.setSingleShot(True)
+        self._status_timer.timeout.connect(self._clear_status_hint)
+        self._status_hint = QLabel()
+        self._status_hint.setObjectName("statusHint")
+        self._status_hint.hide()
+        content.addWidget(self._status_hint)
+
+        # 底部黑色状态栏已移除，提示改为内容区内部 3 秒自动消失
+        self.setStatusBar(None)
+
+        # 顶栏/标题栏固定控件的内联样式集中在此设置，主题切换时重设
+        self._reapply_chrome_styles()
+
+    # ---------- 主题 ----------
+
+    def _reapply_chrome_styles(self) -> None:
+        """主题相关的固定控件内联样式：主题切换时整体重设。
+
+        卡片网格、托盘行、工作台等可重建结构由 _on_theme_changed
+        走各自的重建入口；这里只管不重建的框架件。
+        """
+        self._count_label.setStyleSheet(
+            f"color: {SiColors.TEXT_MUTED}; background: transparent;")
+        self._more_menu.setStyleSheet(
+            f"QMenu {{ background: {SiColors.CARD}; border: 1px solid {SiColors.BTN_HOVER}; border-radius: 8px; padding: 4px; }}"
+            f"QMenu::item {{ color: {SiColors.TEXT_PRIMARY}; padding: 6px 24px 6px 12px; border-radius: 4px; }}"
+            f"QMenu::item:selected {{ background: {SiColors.BTN_HOVER}; }}")
+        self._more_btn.setIcon(qta.icon('mdi.dots-horizontal', color=SiColors.TEXT_PRIMARY))
+        self._more_btn.setStyleSheet(
+            f"QPushButton {{ background: {SiColors.CARD}; border: none; border-radius: 8px; }}"
+            f"QPushButton:hover {{ background: {SiColors.BTN_HOVER}; }}")
+
+    def apply_theme_mode(self, mode: str) -> None:
+        """设置页切换主题入口：应用后经 theme_changed 信号触发重建。"""
+        self._theme_ctrl.set_mode(mode)
+
+    def apply_accent_mode(self, key: str) -> None:
+        """设置页切换强调色入口：复用 theme_changed 广播触发整体换肤。"""
+        self._theme_ctrl.set_accent(key)
+
+    def _on_system_scheme_changed(self, scheme: str) -> None:
+        """系统深浅色变化：托盘图标跟随任务栏底色，与应用主题无关。"""
+        if self._tray is not None:
+            self._tray.apply_system_icon_theme(scheme)
+
+    def _on_theme_changed(self, theme: str) -> None:
+        """主题切换广播：重建可重建结构并刷新固定件。"""
+        self._reapply_chrome_styles()
+        self._rebuild_tabs()
+        self._rebuild_grid()
+        self._update_count_label()
+        self._voice_fab.retheme()
+        if self._tray is not None:
+            # 托盘快捷窗口整窗重建后，立刻回填设备/开关/读数；
+            # 若重建前窗口正显示，set_devices 会自动重新呼出
+            self._tray.retheme()
+            self._update_tray_devices()
+            self._push_tray_metrics()
+        # 打开中的设置页自身也刷新（其样式为构造时求值的内联样式）
+        dlg = self._settings_dialog
+        if dlg is not None and shiboken6.isValid(dlg) and dlg.isVisible():
+            dlg.retheme()
+        # 托盘独立打开的详情对话框（即用即建，但开着时切主题需重建）
+        from PySide6.QtWidgets import QApplication
+        from app.ui.device_dialog import DeviceDetailDialog
+        for w in QApplication.topLevelWidgets():
+            if isinstance(w, DeviceDetailDialog) and w.isVisible():
+                w.retheme()
+        # 桌面小组件重绘：跟随应用的小组件取新调色板（固定明暗的不受影响）
+        if self._widget_mgr is not None:
+            try:
+                self._widget_mgr.retheme()
+            except Exception:
+                pass
+        if self._all_devices:
+            self._refresh_power_states(force=False)
+
+    # ---------- 内嵌标题栏与窗口操作 ----------
+
+    def _build_title_bar(self) -> QWidget:
+        """无边框窗口的内嵌标题栏：拖动移动、双击最大化、窗口控制钮。"""
+        bar = QFrame()
+        bar.setObjectName("titleBar")
+        bar.setFixedHeight(36)
+
+        logo = QLabel()
+        from app import resource_path
+        _icon_path = str(resource_path("app/ui/icon.png"))
+        logo.setPixmap(QPixmap(_icon_path).scaled(20, 20, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        title = QLabel("米家 - MiHome for Windows")
+        title.setObjectName("titleBarText")
+
+        min_btn = self._make_window_button("\uE921", self.showMinimized)
+        self._max_btn = self._make_window_button("\uE922", self._toggle_maximized)
+        self._max_btn.setObjectName("titleBarMax")
+        close_btn = self._make_window_button("\uE8BB", self.close)
+        close_btn.setObjectName("titleBarClose")
+
+        lay = QHBoxLayout(bar)
+        lay.setContentsMargins(12, 0, 4, 0)
+        lay.setSpacing(6)
+        lay.addWidget(logo)
+        lay.addSpacing(4)
+        lay.addWidget(title)
+        lay.addStretch(1)
+        lay.addWidget(min_btn)
+        lay.addWidget(self._max_btn)
+        lay.addWidget(close_btn)
+        return bar
+
+    @staticmethod
+    def _make_window_button(text: str, on_click) -> QPushButton:
+        button = QPushButton(text)
+        button.setObjectName("titleBarBtn")
+        button.setFixedSize(30, 24)
+        button.setCursor(Qt.PointingHandCursor)
+        button.clicked.connect(on_click)
+        return button
+
+    def _toggle_maximized(self) -> None:
+        if self.isMaximized():
+            self.showNormal()
+        else:
+            self.showMaximized()
+        self._max_btn.setText("\uE923" if self.isMaximized() else "\uE922")
+
+    # ---------- 原生窗口行为（Windows 消息拦截） ----------
+    #
+    # 拦截 WM_NCCALCSIZE 抹掉系统标题栏的视觉区域，但保留原生窗口
+    # 框架：拖动、双击最大化、最小化动画、Aero Snap、边缘缩放全部
+    # 由系统接管（经 WM_NCHITTEST 上报命中区域），观感与原生无异。
+
+    def nativeEvent(self, eventType, message):  # noqa: N802 (Qt 命名约定)
+        if sys.platform == "win32" and eventType == "windows_generic_MSG":
+            msg = wintypes.MSG.from_address(int(message))
+            if msg.message == _WM_NCCALCSIZE and msg.wParam:
+                # 抹掉非客户区（标题栏+边框视觉），客户区占满窗口。
+                # 最大化尺寸已被 WM_GETMINMAXINFO 限制在工作区内，
+                # 无需再做「外扩一圈边框」的补偿收缩
+                return True, 0
+            if msg.message == _WM_NCHITTEST:
+                return True, self._hit_test(msg.lParam)
+            if msg.message == _WM_GETMINMAXINFO:
+                return self._on_get_minmax(msg)
+        return False, 0
+
+    def _on_get_minmax(self, msg) -> tuple[bool, int]:
+        """把最大化窗口的上限钳制到所在显示器的工作区。
+
+        无边框但保留原生厚边框的窗口，Windows 会把最大化窗口放到
+        工作区之外一圈（覆盖任务栏/被屏幕边缘裁切），表现为最大化
+        后底部内容被任务栏挡住、右下角内容被裁、还原后尺寸错乱。
+        这里限制 ptMaxSize/ptMaxPosition（物理像素，与系统一致），
+        双击标题栏 / 点最大化按钮 / 拖到屏幕顶 Snap / Win+↑ 统一生效。
+        """
+        try:
+            user32 = ctypes.windll.user32
+            hwnd = int(self.winId())
+            user32.MonitorFromWindow.argtypes = [
+                wintypes.HWND, ctypes.c_ulong]
+            user32.MonitorFromWindow.restype = ctypes.c_void_p
+            user32.GetMonitorInfoW.argtypes = [
+                ctypes.c_void_p, ctypes.POINTER(_MonitorInfo)]
+            user32.GetMonitorInfoW.restype = wintypes.BOOL
+            hmon = user32.MonitorFromWindow(hwnd, _MONITOR_DEFAULTTONEAREST)
+            info = _MonitorInfo()
+            info.cbSize = ctypes.sizeof(_MonitorInfo)
+            if not hmon or not user32.GetMonitorInfoW(hmon, ctypes.byref(info)):
+                return True, 0
+            mmi = _MinMaxInfo.from_address(int(msg.lParam))
+            work = info.rcWork
+            mmi.ptMaxPosition.x = work.left
+            mmi.ptMaxPosition.y = work.top
+            mmi.ptMaxSize.x = work.right - work.left
+            mmi.ptMaxSize.y = work.bottom - work.top
+            mmi.ptMaxTrackSize.x = mmi.ptMaxSize.x
+            mmi.ptMaxTrackSize.y = mmi.ptMaxSize.y
+        except Exception:
+            logger.exception("WM_GETMINMAXINFO 处理失败")
+        return True, 0
+
+    def _system_frame_padding(self) -> int:
+        """系统边框宽度（含扩展边距），随 DPI 缩放。"""
+        user32 = ctypes.windll.user32
+        hwnd = int(self.winId())
+        try:
+            dpi = user32.GetDpiForWindow(hwnd)
+        except AttributeError:
+            dpi = 96
+        base = user32.GetSystemMetrics(32) + user32.GetSystemMetrics(92)  # SM_CXFRAME + SM_CXPADDEDBORDER
+        return int(base * dpi / 96)
+
+    def _hit_test(self, lParam: int) -> int:
+        """把鼠标位置翻译成系统命中代码：边缘缩放 / 标题栏拖动 / 客户区。"""
+        # lParam 低/高 16 位分别是屏幕坐标 x/y（有符号，多显示器可为负）
+        x = ctypes.c_short(lParam & 0xFFFF).value
+        y = ctypes.c_short((lParam >> 16) & 0xFFFF).value
+        pt = wintypes.POINT(x, y)
+        hwnd = int(self.winId())
+        ctypes.windll.user32.ScreenToClient(hwnd, ctypes.byref(pt))
+        # ScreenToClient 返回物理像素，Qt 的尺寸是逻辑像素，需先统一
+        dpr = self.devicePixelRatioF() or 1.0
+        cx, cy = pt.x / dpr, pt.y / dpr
+
+        if not self.isMaximized():
+            m = _RESIZE_MARGIN
+            on_left = cx <= m
+            on_right = cx >= self.width() - m
+            on_top = cy <= m
+            on_bottom = cy >= self.height() - m
+            if on_top and on_left:
+                return _HTTOPLEFT
+            if on_top and on_right:
+                return _HTTOPRIGHT
+            if on_bottom and on_left:
+                return _HTBOTTOMLEFT
+            if on_bottom and on_right:
+                return _HTBOTTOMRIGHT
+            if on_left:
+                return _HTLEFT
+            if on_right:
+                return _HTRIGHT
+            if on_top:
+                return _HTTOP
+            if on_bottom:
+                return _HTBOTTOM
+
+        # 标题栏区域交给系统（拖动/双击最大化）；窗口控制钮保持 HTCLIENT
+        if cy <= 36:
+            child = self.childAt(int(cx), int(cy))
+            if not isinstance(child, QPushButton):
+                return _HTCAPTION
+        return _HTCLIENT
+
+    # ---------- 启动与数据加载 ----------
+
+    def _show_status(self, text: str, timeout_ms: int = 3000) -> None:
+        self._status_hint.setText(text)
+        self._status_hint.show()
+        self._status_timer.start(timeout_ms)
+
+    def _clear_status_hint(self) -> None:
+        self._status_hint.hide()
+
+    def start(self) -> None:
+        """应用入口第一步：校验登录态，决定拉列表还是弹扫码窗。"""
+        self._show_status("正在检查登录状态…")
+        self._jobs.submit(
+            self._service.login_status,
+            on_success=self._after_login_check,
+            # login_status 内部已兜底返回 False；这里只拦「根本没法问」的
+            # 意外异常，同样按未登录处理，绝不让启动检查无声卡死
+            on_error=lambda exc: (
+                logger.warning("登录状态检查失败: %s", exc),
+                self._after_login_check(False),
+            ),
+        )
+        self._maybe_check_update()
+
+    def _maybe_check_update(self) -> None:
+        """按设置在启动时后台检查一次 GitHub 新版本。
+
+        延迟数秒发起：错开设备列表加载与可能的扫码弹窗，避免多个
+        对话框同时抢占；静默启动（托盘常驻）也要查，发现新版时
+        对话框独立居中显示。
+        """
+        if self._update_check_done:
+            return
+        self._update_check_done = True
+        from app.core.settings_store import get_check_update_enabled
+        if not get_check_update_enabled():
+            return
+        from PySide6.QtCore import QTimer
+
+        def _run() -> None:
+            from app.ui.update_flow import check_update
+            check_update(self, manual=False)
+
+        QTimer.singleShot(3000, self, _run)
+
+    def _after_login_check(self, logged_in: bool) -> None:
+        if logged_in:
+            self._startup_load()
+            return
+        # 惰性导入：qrcode 连带 PIL 约 15MB，仅在真正需要扫码时加载；
+        # 凭据缓存的绝大多数会话永远走不到这里
+        from app.ui.login_dialog import LoginDialog
+
+        dialog = LoginDialog(self._service, self._jobs, self)
+        if dialog.exec_and_wait() == LoginDialog.Accepted:
+            self._startup_load()
+        else:
+            QMessageBox.information(self, "未登录", "未完成扫码登录，程序即将退出。")
+            self.close()
+
+    def _startup_load(self) -> None:
+        """启动加载：缓存命中直接渲染，未命中走在线拉取。
+
+        缓存里的开关记忆与温湿度读数一并恢复，启动瞬间即有完整
+        可用的界面与上次读数，新值拿到后覆盖。
+        """
+        self._poll_timer.start()
+        self._metrics_timer.start()
+        if getattr(self._service, "is_mock", False):
+            # 虚拟测试家庭：不读本地真实设备缓存（否则会先显示上次真实
+            # 登录留下的旧设备，误以为没加载测试包），直接在线加载 mock
+            self.load_devices()
+            return
+        cached = device_cache.load()
+        if cached is None:
+            self.load_devices()
+            return
+        devices, known_power, metrics, order = cached
+        # 安全模式：缓存内容可能是带本地化之前的云端英文名，且白名单
+        # 尚未解析——先按名称/型号保守过滤（宁少勿漏），随后在线刷新
+        # 解析本地化中文名并重建（真机联调时首屏可能先空后出设备）
+        from app.core.safety import get_guard as _get_guard
+        guard = _get_guard()
+        if guard.enabled:
+            devices = [d for d in devices
+                       if guard.matches(d.did, d.name, d.model)]
+            self.load_devices()
+        self._known_power.update(known_power)
+        self._metrics.update(metrics)
+        self._custom_order = order
+        if guard.enabled:
+            self._show_status("安全模式下正在解析设备…")
+        else:
+            self._show_status("已从本地缓存加载，点击右上角菜单刷新可同步最新设备")
+        self._apply_devices(devices)
+
+    def load_devices(self) -> None:
+        if self._loading_devices:
+            return
+        self._loading_devices = True
+        self._refresh_action.setEnabled(False)
+        self._refresh_action.setText("刷新中…")
+        self._show_status("正在获取设备列表…")
+        self._jobs.submit(
+            self._service.list_devices,
+            on_success=self._on_devices_loaded,
+            on_error=self._on_load_error,
+        )
+
+    def _on_devices_loaded(self, devices: list[DeviceInfo]) -> None:
+        self._loading_devices = False
+        self._refresh_action.setEnabled(True)
+        self._refresh_action.setText("刷新")
+        # 对比要在替换前做：added/removed 以旧列表为基准
+        added, removed = self._diff_devices(devices)
+        self._apply_devices(devices)
+        if not getattr(self._service, "is_mock", False):
+            # 虚拟测试家庭不写设备缓存：避免污染真实模式下次启动的缓存
+            device_cache.save(devices, self._known_power, self._metrics,
+                              order=self._custom_order)
+        if self._all_devices or added or removed:
+            Toast.info(self, _refresh_summary(len(devices), added, removed))
+
+    def _diff_devices(self, devices: list[DeviceInfo]) -> tuple[int, int]:
+        old = {d.did for d in self._all_devices}
+        new = {d.did for d in devices}
+        return len(new - old), len(old - new)
+
+    def _apply_devices(self, devices: list[DeviceInfo]) -> None:
+        self._all_devices = devices
+        # 刷新后剔除已消失设备并接纳新设备（自定义顺序保持相对稳定）
+        self._prune_custom_order(devices)
+        # 主界面重命名的覆盖名始终优先展示
+        self._name_overrides = device_names.load()
+        for dev in devices:
+            entry = self._name_overrides.get(dev.did)
+            if entry and entry.get("name"):
+                dev.name = entry["name"]
+        homes = sorted(
+            {d.home_name for d in devices},
+            key=lambda h: (h == "未知", h),
+        )
+        self._homes = [_ALL_HOMES] + homes
+        if self._current_home not in self._homes:
+            self._current_home = self._homes[0] if self._homes else _ALL_HOMES
+        self._current_room = _ALL_ROOMS
+        self._home_btn.setText(f"{self._current_home} ▾")
+        self._rebuild_tabs()
+        self._rebuild_grid()
+        self._update_count_label()
+        self._refresh_power_states(force=False)
+        self._refresh_metrics()
+        self._update_voice_fab()
+        self._update_tray_devices()
+        if self._widget_mgr is not None:
+            try:
+                self._widget_mgr.sync_device_meta(devices)
+            except Exception:
+                pass
+        # 产品图异步就绪后回填（缓存命中则立即生效）；设备列表刷新
+        # 视为用户主动重试：清掉本会话失败记录，让缺失型号再试一次
+        self._icon_failed.clear()
+        QTimer.singleShot(300, self._prime_card_icons)
+
+    def _maybe_localize_names(self) -> None:
+        """未改名英文设备用中文名替换显示名（两个来源按序兜底）。
+
+        ① spec 缓存里的产品名（多数设备有，零网络开销）；
+        ② miot-spec 产品页（/p/<model>）的中文商品名——无公开 spec
+          的设备（如仅蓝牙类）只有这里有，经后台线程抓取并缓存
+          （含“确认无中文名”的结果，不重复查询）。
+        改名设备与中文名设备不受影响；spec 产品名相同的设备
+        （同型号多台）追加 did 尾号以区分。
+        """
+        if not self._all_devices:
+            return
+        try:
+            names_now = {d.did: d.name for d in self._all_devices}
+            replacements = self._service.localized_product_names(
+                list(names_now), names_now)
+            ascii_devices = [d for d in self._all_devices if d.name.isascii() and d.model]
+            model_to_did = {d.model: d.did for d in ascii_devices}
+            models = sorted(model_to_did)
+            if models:
+                # 产品页名称按型号缓存，需映射回 did 再并入替换表
+                for model, product_name in self._service.cached_product_page_names(models).items():
+                    replacements[model_to_did[model]] = product_name
+        except Exception:
+            logger.exception("本地化设备名失败")
+            return
+        if replacements:
+            if self._apply_display_names(replacements):
+                return  # 已重建并同步托盘
+        # 仍有未解析的型号 → 提交一次后台查询（防重入）
+        pending = sorted({d.model for d in ascii_devices
+                          if not self._service.has_product_page_name(d.model)})
+        if pending and not self._localize_busy:
+            self._localize_busy = True
+            self._jobs.submit(
+                lambda: [self._service.product_page_name(m) for m in pending],
+                on_success=lambda _: self._on_product_names_fetched(),
+                on_error=lambda e: self._on_product_names_failed(e),
+            )
+
+    def _apply_display_names(self, replacements: dict[str, str]) -> bool:
+        """把替换名写入设备对象并重建展示；返回是否有实际变化。
+
+        主界面重命名过的设备（本地覆盖名）不再被自动本地化覆盖。
+        """
+        changed = False
+        for d in self._all_devices:
+            if d.did in self._name_overrides:
+                continue
+            new_name = replacements.get(d.did)
+            if new_name and new_name != d.name:
+                d.name = new_name
+                changed = True
+        if not changed:
+            return False
+        # 同型号多台替换后同名：追加 did 尾号区分（如 ·468）
+        by_name: dict[str, int] = {}
+        for d in self._all_devices:
+            by_name[d.name] = by_name.get(d.name, 0) + 1
+        for d in self._all_devices:
+            if d.did in self._name_overrides:
+                continue
+            if by_name.get(d.name, 0) > 1 and d.did in replacements:
+                d.name = f"{d.name}·{d.did[-3:]}"
+        self._rebuild_grid()
+        self._update_count_label()
+        self._update_tray_devices()
+        return True
+
+    def _on_product_names_fetched(self) -> None:
+        self._localize_busy = False
+        self._maybe_localize_names()
+
+    def _on_product_names_failed(self, error: Exception) -> None:
+        # 网络失败不缓存结果：下一轮轮询会再次触发查询
+        self._localize_busy = False
+        logger.warning("产品页名称查询失败: %s", error)
+
+    def _update_tray_devices(self) -> None:
+        if self._tray is not None:
+            self._tray.set_devices(self._displayed_devices(), self._known_power)
+
+    def _show_more_menu(self) -> None:
+        """在更多按钮左下方弹出菜单，右边缘与按钮右边缘对齐。"""
+        self._more_menu.adjustSize()
+        pos = self._more_btn.mapToGlobal(self._more_btn.rect().bottomRight())
+        menu_w = self._more_menu.sizeHint().width()
+        self._more_menu.exec(QPoint(pos.x() - menu_w, pos.y() + 8))
+
+    def request_force_quit(self) -> None:
+        """托盘菜单「退出」调用：closeEvent 跳过隐藏到托盘，直接退出。"""
+        self._force_quit = True
+
+    def devices(self) -> list[DeviceInfo]:
+        """当前全量设备列表（托盘快捷窗口打开详情用）。"""
+        return self._all_devices
+
+    def show_tray_manager(self) -> None:
+        """打开托盘设备管理对话框（托盘菜单与主界面菜单共用入口）。"""
+        if not self._all_devices:
+            Toast.info(self, "请先刷新获取设备列表", 2500)
+            return
+        # 管理时收起快捷窗口避免与对话框重叠时显示旧状态
+        if self._tray is not None:
+            self._tray.hide_quick()
+        # 主窗口可能已隐藏到托盘，管理对话框需独立显示
+        parent = None if self.isHidden() else self
+        dlg = TrayManagerDialog(self._all_devices, parent,
+                                service=self._service, jobs=self._jobs)
+        result = dlg.exec()
+        dlg.deleteLater()
+        if result == QDialog.Accepted:
+            from app.core import tray_ops_store as _tray_ops
+            from app.core import tray_store as _ts
+            selected = dlg.selected_dids()
+            _ts.save(selected)
+            # 清理已移出托盘设备的调节项配置
+            _tray_ops.cleanup(set(selected))
+            self._update_tray_devices()
+            Toast.info(self, "托盘设备已更新", 2000)
+
+    def show_about(self) -> None:
+        """打开关于对话框（即用即建）。"""
+        from app.ui.about_dialog import AboutDialog
+        dlg = AboutDialog(self)
+        dlg.exec()
+        dlg.deleteLater()
+
+    def show_scenes(self) -> None:
+        """打开米家场景对话框（列表 + 一键执行，安全模式下禁用）。"""
+        from app.core.safety import get_guard
+        from app.ui.scenes_dialog import ScenesDialog
+        if get_guard().enabled:
+            Toast.info(self, "安全模式（MIWU_SAFE_DEVICE）下场景已禁用", 3000)
+            return
+        if not self._all_devices:
+            Toast.info(self, "请先刷新获取设备列表", 2500)
+            return
+        dlg = ScenesDialog(self._service, self._jobs, self)
+        dlg.exec()
+        dlg.deleteLater()
+
+    def show_settings(self) -> None:
+        """打开设置对话框（托盘菜单与主界面菜单共用入口）。"""
+        # 弹出期间置顶已有实例，避免托盘与主界面重复弹出
+        dlg = self._settings_dialog
+        if dlg is not None and dlg.isVisible():
+            dlg.raise_()
+            dlg.activateWindow()
+            return
+        dlg = SettingsDialog(self, devices=self._all_devices,
+                             widget_manager=self._widget_mgr,
+                             service=self._service, jobs=self._jobs)
+        self._settings_dialog = dlg
+        dlg.exec()
+        scale_changed = getattr(dlg, "_scale_changed", False)
+        dlg.deleteLater()
+        self._settings_dialog = None
+        # 界面缩放改动需重启应用生效：提供一键重启（常驻托盘时关窗口
+        # 只是隐藏到托盘、进程仍在，仅提示会让用户以为没生效）
+        if scale_changed:
+            from app.ui.restart import restart_app
+            ret = QMessageBox.question(
+                self, "界面缩放已保存",
+                "界面缩放需重启应用后生效。\n是否立即重启？",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.Yes)
+            if ret == QMessageBox.Yes:
+                self._force_quit = True
+                restart_app()
+        # 设置可能变了，同步托盘图标显隐
+        from app.core.settings_store import get_minimize_to_tray
+        if self._tray is not None:
+            self._tray.set_tray_visible(get_minimize_to_tray())
+        # “隐藏无可控制功能的设备”开关可能变化：重载并刷新展示
+        from app.core.settings_store import get_hide_no_func_devices
+        new_hide = get_hide_no_func_devices()
+        if new_hide != self._hide_no_func:
+            self._hide_no_func = new_hide
+            self._rebuild_tabs()
+            self._rebuild_grid()
+            self._update_count_label()
+            self._update_tray_devices()
+        # 产品图开关 / 主卡片宽度：即时生效
+        from app.core.settings_store import get_card_width, get_show_device_icons
+        changed_view = False
+        new_icons = get_show_device_icons()
+        if new_icons != self._show_icons:
+            self._show_icons = new_icons
+            if not new_icons:
+                self._card_pix.clear()
+            else:
+                # 从关再开：清掉会话内失败记录，允许重新拉取产品图
+                self._icon_failed.clear()
+            changed_view = True
+        new_w = get_card_width()
+        if new_w != self._card_w:
+            self._card_w = new_w
+            changed_view = True
+        if changed_view:
+            self._rebuild_grid()
+            if self._show_icons:
+                # 重建后统一走拉取入口：命中磁盘/内存立即回填，
+                # 缺失的型号异步补齐（可重复触发，不再一次性永久跳过）
+                QTimer.singleShot(300, self._prime_card_icons)
+        # 同步小爱悬浮按钮显隐
+        self._update_voice_fab()
+
+    def _update_voice_fab(self) -> None:
+        """根据设置与设备列表决定小爱悬浮按钮显隐。
+
+        输出音箱：设置的默认音箱（在线时）优先，否则回退第一个在线音箱。
+        """
+        from app.core.settings_store import get_default_speaker_did, get_voice_fab_enabled
+        pref = get_default_speaker_did()
+        speaker = next(
+            (d for d in self._all_devices
+             if d.did == pref and is_speaker(d) and d.online),
+            None,
+        )
+        if speaker is None:
+            speaker = next(
+                (d for d in self._all_devices if is_speaker(d) and d.online),
+                None,
+            )
+        self._voice_did = speaker.did if speaker else None
+        # 仅当设置开启且存在在线音箱时显示
+        show = get_voice_fab_enabled() and speaker is not None
+        self._voice_fab.setVisible(show)
+        if not show:
+            self._voice_fab.collapse()
+
+    def _on_voice_command(self, text: str) -> None:
+        did = self._voice_did
+        if did is None:
+            return
+        # 设置的默认音箱离线/不在列表 → 已回退：提示里说明，并把
+        # 设置回退为「自动」（否则偏好一直指向离线设备，每次都要回退）
+        from app.core.settings_store import get_default_speaker_did, set_default_speaker_did
+        pref = get_default_speaker_did()
+        fallback_note = ""
+        if pref and pref != did:
+            fallback_note = "（首选音箱离线，已由当前在线音箱代答）"
+            set_default_speaker_did("")
+        self._jobs.submit(
+            lambda: self._service.run_action(did, "execute-text-directive", [text]),
+            on_success=lambda _, note=fallback_note: Toast.info(
+                self, f"已告诉小爱同学：{text}{note}", 3000),
+            on_error=lambda e: Toast.info(self, f"执行失败：{e}", 4000),
+        )
+
+    def _update_count_label(self) -> None:
+        subset = self._visible_devices() if self._current_home == _ALL_HOMES else [
+            d for d in self._visible_devices() if d.home_name == self._current_home
+        ]
+        total = len(subset)
+        online = sum(1 for d in subset if d.online)
+        self._count_label.setText(
+            f'<span style="color:{SiColors.TEXT_MUTED}">共 {total} 台设备</span>'
+            f'&nbsp;&nbsp;<span style="color:{SiColors.THEME}">●</span>'
+            f'&nbsp;<span style="color:{SiColors.TEXT_MUTED}">{online} 台在线</span>'
+        )
+
+    def _on_poll_tick(self) -> None:
+        if self._poll_in_flight or not self._all_devices:
+            return
+        self._refresh_power_states(force=True)
+
+    def _refresh_power_states(self, force: bool) -> None:
+        """批量拉取当前可见设备的开关状态。
+
+        force=False 只探测还没有结论的设备（首次/新设备）；
+        force=True 忽略记忆全量重读（定时轮询）。
+        离线设备的云端返回值是最后一次在线时的缓存，不可信，跳过。
+        """
+        # 以 DeviceInfo.online 为准：离线设备的云端开关值不可信
+        dids = [d.did for d in self._visible_devices() if d.online]
+        if not dids:
+            return
+        if not force:
+            dids = [d for d in dids if d not in self._known_power]
+            if not dids:
+                return
+        else:
+            # 轮询仅针对已确认有开关能力的设备，避免无开关设备无效请求
+            dids = [d for d in dids if self._known_power.get(d) is not None]
+            if not dids:
+                return
+        self._poll_in_flight = True
+        self._jobs.submit(
+            lambda: self._service.power_states(dids),
+            on_success=self._apply_power_states,
+            on_error=self._on_poll_error,
+        )
+
+    def _on_poll_error(self, error: Exception) -> None:
+        # 轮询失败不打断界面，但必须留痕：持续失败意味着网络/凭据异常
+        self._poll_in_flight = False
+        logger.warning("轮询设备开关状态失败: %s", error)
+
+    def _apply_power_states(self, states: dict[str, bool | None]) -> None:
+        self._poll_in_flight = False
+        for did, state in states.items():
+            self._apply_power_state(did, state)
+        self._maybe_localize_names()
+        self._update_tray_devices()
+
+    def _apply_power_state(self, did: str, state: bool | None) -> None:
+        # 离线设备的开关值不落记忆，避免云端缓存的旧值覆盖灰置状态
+        dev = next((d for d in self._all_devices if d.did == did), None)
+        if dev is not None and not dev.online:
+            self._known_power[did] = None
+            return
+        self._known_power[did] = state
+        card = self._cards.get(did)
+        if card is not None and state is not None:
+            card.set_power_state(state)
+        # 主窗口轮询/详情回读的实时状态同时推给桌面小组件
+        if state is not None and self._widget_mgr is not None:
+            try:
+                self._widget_mgr.sync_power_states({did: state})
+            except Exception:
+                pass
+
+    def apply_external_power_sync(self, did: str, state: bool | None) -> None:
+        """小组件/托盘等其它入口改开关后，主窗口侧同步卡片与托盘记忆。"""
+        if state is None:
+            return
+        self._known_power[did] = state
+        card = self._cards.get(did)
+        if card is not None and shiboken6.isValid(card):
+            card.set_power_state(state)
+        if self._tray is not None:
+            try:
+                self._tray.set_devices(self._all_devices, self._known_power)
+            except Exception:
+                pass
+
+    def apply_quick_value_external(self, did: str, name: str, value) -> None:
+        """小组件写了一个可调项后，把新值同步给托盘展开行（若有）。"""
+        if self._tray is not None:
+            try:
+                self._tray.push_quick_value(did, name, value)
+            except Exception:
+                pass
+
+    def _broadcast_quick_value_written(self, did: str, name: str, value) -> None:
+        """详情工作台写属性成功：把新值同步给小组件/托盘展开行。"""
+        if self._widget_mgr is not None:
+            try:
+                self._widget_mgr.broadcast_quick_value(did, name, value)
+            except Exception:
+                pass
+
+    def _refresh_metrics(self) -> None:
+        """为无开关能力的可见设备批量拉温湿度读数（副标题展示）。
+
+        有开关的设备副标题保持纯房间名；温湿度计这类设备读 SI 标准
+        temperature/humidity 属性，读数失败静默跳过。
+        """
+        dids = [
+            d.did for d in self._visible_devices()
+            if self._known_power.get(d.did) is None
+        ]
+        if not dids:
+            return
+        self._jobs.submit(
+            lambda: self._service.read_metrics(dids),
+            on_success=self._apply_metrics,
+            on_error=lambda exc: logger.warning("拉取温湿度读数失败: %s", exc),
+        )
+
+    def _apply_metrics(self, metrics: dict[str, str | None]) -> None:
+        dirty = False
+        for did, text in metrics.items():
+            if text:
+                if self._metrics.get(did) != text:
+                    dirty = True
+                self._metrics[did] = text
+            elif did in self._metrics:
+                self._metrics.pop(did, None)
+                dirty = True
+            card = self._cards.get(did)
+            if card is not None:
+                card.set_metrics(text)
+        if dirty and self._all_devices:
+            device_cache.save(self._all_devices, self._known_power, self._metrics,
+                              order=self._custom_order)
+        self._maybe_localize_names()
+        self._push_tray_metrics()
+
+    def _push_tray_metrics(self) -> None:
+        """把温湿度读数同步给托盘快捷窗口（副标题展示）。"""
+        if self._tray is not None:
+            try:
+                self._tray.set_metrics(self._metrics)
+            except Exception:
+                # 托盘行可能在重建间隙销毁，同步失败可安全忽略
+                pass
+
+    def _on_detail_metrics(self, did: str, text: str) -> None:
+        """详情页回读到温湿度后立即回写卡片与缓存（手动刷新路径）。"""
+        if not text:
+            return
+        if self._metrics.get(did) == text:
+            return
+        self._metrics[did] = text
+        card = self._cards.get(did)
+        if card is not None:
+            card.set_metrics(text)
+        if self._all_devices:
+            device_cache.save(self._all_devices, self._known_power, self._metrics,
+                              order=self._custom_order)
+
+    def _visible_devices(self) -> list[DeviceInfo]:
+        return [
+            d for d in self._all_devices
+            if (self._current_home == _ALL_HOMES or d.home_name == self._current_home)
+            and (self._current_room == _ALL_ROOMS or d.room_name == self._current_room)
+            and (not self._hide_no_func or self._device_has_functions(d))
+        ]
+
+    # ---------- 自定义排序（右键拖拽） ----------
+
+    def _ordered_view_devices(self) -> list[DeviceInfo]:
+        """网格显示顺序：无自定义顺序时保持默认排序（在线优先+名称）。
+
+        用户拖拽调整过后按持久化顺序稳定显示——设备离线/上线不再
+        跳位（“像手机桌面一样固定位置”，状态只体现在卡片灰置上）。
+        """
+        devices = self._visible_devices()
+        if not self._custom_order:
+            return sorted(devices, key=lambda d: (0 if d.online else 1, d.name))
+        pos = {did: i for i, did in enumerate(self._custom_order)}
+        return sorted(devices, key=lambda d: (pos.get(d.did, len(pos)), d.name))
+
+    def _normalize_order(self, order: list[str] | None) -> list[str] | None:
+        """把任意顺序快照归一到当前设备集：剔除已下线设备、新设备追加尾部。
+
+        None / 空列表都视为「默认排序」，统一归一到 None。
+        """
+        if not order:
+            return None
+        alive = {d.did for d in self._all_devices}
+        merged = [did for did in order if did in alive]
+        seen = set(merged)
+        merged += [d.did for d in self._all_devices if d.did not in seen]
+        return merged or None
+
+    def _prune_custom_order(self, devices: list[DeviceInfo] | None = None) -> None:
+        """设备增删后修正自定义顺序（刷新后调用）。"""
+        self._custom_order = self._normalize_order(self._custom_order)
+
+    def _persist_order(self) -> None:
+        """把当前自定义顺序写入本地缓存；虚拟测试家庭不落盘。"""
+        if not getattr(self._service, "is_mock", False):
+            device_cache.save(self._all_devices, self._known_power,
+                              self._metrics, order=self._custom_order)
+
+    def _on_grid_order_committed(self, ordered_dids: list[str]) -> None:
+        """网格落位回调：视图内新顺序并入全量顺序，入撤销栈并持久化。
+
+        视图可能只是全量设备的子集（房间/家庭/隐藏过滤）。并入时
+        保持其余（不可见）设备的位置不动，仅让可见设备按新顺序
+        重排，保证各过滤视图下的相对顺序一致。
+        """
+        merged = self._merge_view_order(ordered_dids)
+        if merged == self._custom_order:
+            return
+        self._push_order_history()
+        self._custom_order = merged
+        self._persist_order()
+
+    def _merge_view_order(self, ordered_dids: list[str]) -> list[str]:
+        base = list(self._custom_order) if self._custom_order else [
+            d.did for d in sorted(
+                self._all_devices,
+                key=lambda d: (0 if d.online else 1, d.name))
+        ]
+        alive = {d.did for d in self._all_devices}
+        base = [did for did in base if did in alive]
+        seen = set(base)
+        base += [d.did for d in self._all_devices if d.did not in seen]
+        # 可见设备按“新视图顺序”依次落回原位，隐藏设备原地不动
+        queue = list(ordered_dids)
+        view_set = set(queue)
+        merged = [queue.pop(0) if did in view_set else did for did in base]
+        merged += queue  # 防御：视图里万一出现不在 base 的 did
+        return merged
+
+    def _on_grid_drag_finished(self) -> None:
+        """拖拽结束（含取消）：拖拽期间被推迟的重建在此补建。"""
+        if self._grid_dirty:
+            self._grid_dirty = False
+            self._rebuild_grid()
+
+    # ---------- 顺序撤销 / 恢复 / 重置（设置页入口） ----------
+
+    def device_order_history(self) -> tuple[int, int]:
+        """返回 (可撤销步数, 可恢复步数)，供设置页按钮状态使用。"""
+        return len(self._order_undo), len(self._order_redo)
+
+    def has_custom_device_order(self) -> bool:
+        """是否已自定义过卡片顺序（用于「恢复默认」可用态）。"""
+        return bool(self._custom_order)
+
+    def reset_device_order(self) -> None:
+        """恢复默认排序：清除自定义顺序（在线优先+名称）；可撤销。"""
+        if not self._custom_order:
+            return
+        self._push_order_history()
+        self._apply_order_state(None)
+
+    def undo_device_order(self) -> None:
+        """撤销上一步卡片移动/顺序变更。"""
+        if not self._order_undo:
+            return
+        self._order_redo.append(self._custom_order)
+        self._apply_order_state(self._order_undo.pop())
+
+    def redo_device_order(self) -> None:
+        """重做刚被撤销的一步顺序变更。"""
+        if not self._order_redo:
+            return
+        self._order_undo.append(self._custom_order)
+        self._apply_order_state(self._order_redo.pop())
+
+    def _push_order_history(self) -> None:
+        """每次顺序变更前入栈当前状态（拖拽落位/恢复默认等）。"""
+        self._order_undo.append(self._custom_order)
+        if len(self._order_undo) > _ORDER_HISTORY_MAX:
+            self._order_undo.pop(0)
+        self._order_redo.clear()
+
+    def _apply_order_state(self, order: list[str] | None) -> None:
+        """应用一个顺序状态（撤销/恢复/重置共用）：归一、落盘、重建。"""
+        order = self._normalize_order(order)
+        self._custom_order = order
+        self._persist_order()
+        self._rebuild_grid()
+
+    def _device_has_functions(self, device: DeviceInfo) -> bool:
+        """None（spec 未拉取）视为有——等首轮轮询证实后再隐藏。"""
+        state = self._service.model_has_published_functions(device.model)
+        return state is not False
+
+    def _displayed_devices(self) -> list[DeviceInfo]:
+        """主页/托盘展示列表（含家庭/房间过滤与“隐藏无功能设备”）。"""
+        if not self._hide_no_func:
+            return self._all_devices
+        return [d for d in self._all_devices if self._device_has_functions(d)]
+
+    def _show_home_menu(self) -> None:
+        if not self._homes:
+            return
+        # 原生 QMenu：文字左对齐、无多余滚动条，行为与系统菜单一致；
+        # siui 的 SiRoundedMenu 是独立透明窗口还自带滚动条，观感不佳
+        menu = QMenu(self)
+        menu.setObjectName("appMenu")
+        for home in self._homes:
+            action = menu.addAction(home)
+            action.setCheckable(True)
+            action.setChecked(home == self._current_home)
+            action.triggered.connect(lambda _, h=home: self._select_home(h))
+        menu.exec(self._home_btn.mapToGlobal(
+            self._home_btn.rect().bottomLeft()))
+        menu.deleteLater()
+
+    def _select_home(self, home: str) -> None:
+        if home == self._current_home:
+            return
+        self._current_home = home
+        self._current_room = _ALL_ROOMS
+        self._home_btn.setText(f"{home} ▾")
+        self._rebuild_tabs()
+        self._rebuild_grid()
+        self._animate_grid_in()
+        self._update_count_label()
+        self._refresh_power_states(force=False)
+        self._refresh_metrics()
+
+    def _animate_grid_in(self) -> None:
+        """切换家庭/房间后卡片网格整体淡入（160ms），结束即移除效果。"""
+        effect = QGraphicsOpacityEffect(self._grid_host)
+        effect.setOpacity(0.0)
+        self._grid_host.setGraphicsEffect(effect)
+        anim = QPropertyAnimation(effect, b"opacity", self)
+        anim.setDuration(160)
+        anim.setStartValue(0.0)
+        anim.setEndValue(1.0)
+        def _cleanup() -> None:
+            # 快速连续切换时旧动画的 finished 会迟到，只清理仍属
+            # 自己的效果，避免误删新一轮动画的透明度效果
+            if self._grid_host.graphicsEffect() is effect:
+                self._grid_host.setGraphicsEffect(None)
+
+        anim.finished.connect(_cleanup)
+        anim.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
+
+    def _on_load_error(self, error: Exception) -> None:
+        self._show_status("加载失败", 4000)
+        QMessageBox.critical(self, "加载失败", str(error))
+
+    # ---------- 房间 tab ----------
+
+    def _rebuild_tabs(self) -> None:
+        # 彻底清空布局条目（含 stretch）：只删按钮会残留 stretch 项，
+        # 每次切换家庭都会把新按钮往右推一格
+        while self._tab_row.count():
+            item = self._tab_row.takeAt(0)
+            if widget := item.widget():
+                widget.deleteLater()
+        self._tab_buttons.clear()
+
+        rooms = [_ALL_ROOMS] + sorted({
+            d.room_name for d in self._all_devices
+            if (self._current_home == _ALL_HOMES or d.home_name == self._current_home)
+            and d.room_name and d.room_name != "未知"
+        })
+        for room in rooms:
+            btn = themed_tab_button(room)
+            btn.setCursor(Qt.PointingHandCursor)
+            btn.clicked.connect(lambda _, r=room: self._select_room(r))
+            self._tab_row.addWidget(btn)
+            self._tab_buttons[room] = btn
+        self._tab_row.addStretch(1)
+        self._sync_tab_style()
+
+    def _select_room(self, room: str) -> None:
+        self._current_room = room
+        self._sync_tab_style()
+        self._rebuild_grid()
+        self._animate_grid_in()
+        self._refresh_power_states(force=False)
+
+    def _sync_tab_style(self) -> None:
+        for room, btn in self._tab_buttons.items():
+            # siui 切换按钮的选中观感由 checked 状态自绘驱动
+            if btn.isChecked() != (room == self._current_room):
+                btn.setChecked(room == self._current_room)
+
+    # ---------- 卡片网格 ----------
+
+    def _rebuild_grid(self) -> None:
+        # 窗口不可见时跳过实际构建（尺寸也尚未确定），留待 showEvent
+        if not self.isVisible():
+            self._grid_dirty = True
+            return
+        # 拖拽中不重建（会掐断拖动的跟手状态），结束后补建
+        if self._grid.dragging():
+            self._grid_dirty = True
+            return
+        self._grid_dirty = False
+        for card in self._cards.values():
+            card.deleteLater()
+        self._cards.clear()
+
+        cards: list[DeviceCard] = []
+        for device in self._ordered_view_devices():
+            card = DeviceCard(device, width=self._card_w)
+            # 记忆里的开关状态与读数立即回显，重建卡片不丢状态
+            known = self._known_power.get(device.did)
+            if known is not None:
+                card.set_power_state(known)
+            if device.did in self._metrics:
+                card.set_metrics(self._metrics.get(device.did))
+            card.power_clicked.connect(self._on_power_clicked)
+            card.open_requested.connect(self._on_open_device)
+            self._cards[device.did] = card
+            cards.append(card)
+        # 卡片放入动画网格：位置/列数/拖拽排序都由网格管理
+        self._grid.set_cards(cards)
+        # 重建后回填已就绪的产品图
+        for model, pix in self._card_pix.items():
+            if pix is not None:
+                self._apply_card_icon(model, pix)
+
+    def showEvent(self, event) -> None:  # noqa: N802 (Qt 命名约定)
+        super().showEvent(event)
+        # 首次显示：应用默认窗口尺寸 1780×1200 物理像素（按当前有效
+        # 缩放换算逻辑尺寸），并居中于所在屏幕的可用区域。首次启动时
+        # DPR 读数不可靠（曾导致尺寸异常），故延迟到 showEvent——此时
+        # 原生窗口已创建、读数准确。之后的托盘唤出保持上次位置
+        if not self._default_size_applied:
+            self._default_size_applied = True
+            dpr = self.devicePixelRatioF() or 1.0
+            self.resize(round(1780 / dpr), round(1200 / dpr))
+            from PySide6.QtGui import QGuiApplication
+            screen = self.screen() or QGuiApplication.primaryScreen()
+            avail = screen.availableGeometry()
+            self.move(avail.center().x() - self.width() // 2,
+                      avail.center().y() - self.height() // 2)
+        # 托盘常驻启动/唤出：隐藏期间积压的网格重建在此执行
+        if self._grid_dirty:
+            self._rebuild_grid()
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 (Qt 命名约定)
+        super().resizeEvent(event)
+        # 系统缩放切换时 Qt 对无边框窗口的尺寸重算可能失控（窗口被
+        # 成倍放大超出屏幕），每次尺寸变化都钳制回所在屏幕的可用区域
+        self._clamp_to_screen()
+        # 缩放（DPR）变化：Qt 保持物理尺寸导致逻辑尺寸被重算——恢复
+        # 变化前的逻辑尺寸，让窗口与界面元素同步缩放
+        dpr = self.devicePixelRatioF() or 1.0
+        if (self._last_dpr is not None and self._expected_logical is not None
+                and abs(dpr - self._last_dpr) > 1e-9
+                and not self.isMaximized() and not self.isMinimized()):
+            w, h = self._expected_logical
+            self._expected_logical = None
+            QTimer.singleShot(0, lambda: (self.resize(w, h), self._clamp_to_screen()))
+            self._last_dpr = dpr
+        else:
+            self._expected_logical = (self.width(), self.height())
+            self._last_dpr = dpr
+        # 拖动窗口时 resizeEvent 每秒触发几十次，全部重建卡片网格代价
+        # 太高；防抖等布局稳定，列数真的变化时才重建
+        self._resize_timer.start()
+        self._voice_fab.reposition()
+
+    def changeEvent(self, event) -> None:  # noqa: N802 (Qt 命名约定)
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.WindowStateChange:
+            maximized = self.isMaximized()
+            if hasattr(self, "_max_btn"):
+                self._max_btn.setText("\uE923" if maximized else "\uE922")
+            # 最大化/还原/贴靠等状态切换后，最终客户区尺寸由系统在消息
+            # 循环里异步下发；延迟一帧等 Qt 完成几何重算再校正列数，
+            # 避免最大化瞬间仍按旧宽度算列导致内容被裁/大面积留白
+            QTimer.singleShot(0, self._sync_after_state_change)
+
+    def _sync_after_state_change(self) -> None:
+        if self.isMinimized() or not self.isVisible():
+            return
+        self._clamp_to_screen()
+        if self._cards:
+            self._on_resize_settled()
+
+    def _clamp_to_screen(self) -> None:
+        """把窗口尺寸/位置钳制回所在屏幕的可用工作区。
+
+        覆盖两类异常：系统缩放切换后窗口异常放大；分辨率切换后窗口
+        大半落在屏幕外。最大化/最小化状态不干预。
+        """
+        if self.isMaximized() or self.isMinimized():
+            return
+        screen = self.screen()
+        if screen is None:
+            return
+        avail = screen.availableGeometry()
+        w, h = self.width(), self.height()
+        if w > avail.width() or h > avail.height():
+            self.resize(min(w, avail.width()), min(h, avail.height()))
+        # 位置 sanity：窗口完全落在屏幕外时拉回可见区域
+        g = self.geometry()
+        if (g.right() < avail.left() or g.left() > avail.right()
+                or g.bottom() < avail.top() or g.top() > avail.bottom()):
+            self.move(avail.left() + 12, avail.top() + 12)
+
+    def _on_resize_settled(self) -> None:
+        if not self._cards:
+            return
+        # 列数/宽度变化交给动画网格：卡片滑向新槽位，无需整批重建
+        self._grid.reflow_if_needed()
+
+    # ---------- 快速开关 ----------
+
+    def _on_power_clicked(self, did: str) -> None:
+        """电源钮点击：忙期不吞点击——计数排队，逐次串行执行。
+
+        设备执行（含网络往返）有延迟；若忙碌时禁用按钮，快速连点会
+        被吞成一次命令。改为把每次点击计入 _power_pending，当前命令
+        完成后自动补发下一条，直到队列清空（点 N 次 = 设备执行 N 次）。
+        """
+        card = self._cards.get(did)
+        if card is None or not card.device.online:
+            return
+        card.set_busy(True)
+        pending = self._power_pending.get(did, 0) + 1
+        self._power_pending[did] = pending
+        if pending == 1:
+            self._drain_power_queue(did)
+
+    def _drain_power_queue(self, did: str) -> None:
+        """为 did 补发一条开关命令（读当前值取反写回，逐条执行）。"""
+        self._jobs.submit(
+            lambda: self._service.toggle_power(did),
+            on_success=lambda state: self._on_power_step_done(did, state),
+            on_error=lambda err: self._on_power_step_failed(did, err),
+        )
+
+    def _power_device_name(self, did: str) -> str:
+        dev = next((d for d in self._all_devices if d.did == did), None)
+        return dev.name if dev is not None else did
+
+    def _on_power_step_done(self, did: str, new_state: bool) -> None:
+        # 卡片可能在排队期间随网格重建被销毁，回填前先确认存活；
+        # 队列推进不依赖卡片存在（重建后照常执行剩余命令）
+        card = self._cards.get(did)
+        if card is not None and shiboken6.isValid(card):
+            card.set_power_state(new_state)
+        self._known_power[did] = new_state
+        self._update_tray_devices()
+        # 主界面点击开关后立即推送给桌面小组件（不等待下一次轮询）
+        if self._widget_mgr is not None:
+            try:
+                self._widget_mgr.sync_power_states({did: new_state})
+            except Exception:
+                pass
+        pending = self._power_pending.get(did, 0)
+        if pending is None or pending <= 1:
+            self._power_pending.pop(did, None)
+            if card is not None and shiboken6.isValid(card):
+                card.set_busy(False)
+            Toast.info(
+                self, f"已{'打开' if new_state else '关闭'}「{self._power_device_name(did)}」",
+                2500)
+            return
+        # 仍有排队点击：补发下一条（toggle 每次读云端实时值，语义正确）
+        self._power_pending[did] = pending - 1
+        self._drain_power_queue(did)
+
+    def _on_power_step_failed(self, did: str, error: Exception) -> None:
+        self._power_pending.pop(did, None)
+        card = self._cards.get(did)
+        if card is not None and shiboken6.isValid(card):
+            card.set_busy(False)
+        QMessageBox.warning(self, "操作失败", str(error))
+
+    # ---------- 产品图 ----------
+
+    def _prime_card_icons(self) -> None:
+        """为可见设备拉产品图：磁盘命中立即注入，否则后台取一次。
+
+        设备刷新、产品图重开、卡片宽度改动后都会走到这里；已就绪的
+        型号直接跳过，未拉取过的才排队请求。中途关过产品图（内存缓存
+        被清空）再重新开启时也能自动补齐，不再因「只拉一次」的标记而
+        永久缺失（曾表现为改完卡片宽度后产品图消失、刷新也不回来）。
+        """
+        from app.core import icons as icon_cache
+
+        if not self._show_icons or self._icon_fetching:
+            return
+        models: list[str] = []
+        seen: set[str] = set()
+        for dev in self._all_devices:
+            if dev.model and dev.model not in seen:
+                seen.add(dev.model)
+                models.append(dev.model)
+        todo: list[str] = []
+        for model in models:
+            pix = self._card_pix.get(model)
+            if pix is None:
+                pix = icon_cache.load_pixmap(model, 40)
+                if pix is not None:
+                    self._card_pix[model] = pix
+                    self._apply_card_icon(model, pix)
+            if model not in self._card_pix and model not in self._icon_pending \
+                    and model not in self._icon_failed:
+                self._icon_pending.add(model)
+                todo.append(model)
+        if not todo:
+            return
+        self._icon_todo = list(todo)
+        self._icon_fetching = True
+        self._jobs.submit(
+            lambda todo=todo: {
+                m: self._service.fetch_product_icon(m) for m in todo},
+            on_success=self._on_card_icons_fetched,
+            on_error=self._on_card_icons_failed,
+        )
+
+    def _on_card_icons_fetched(self, mapping: dict) -> None:
+        from app.core import icons as icon_cache
+
+        self._icon_fetching = False
+        for model, data in (mapping or {}).items():
+            self._icon_pending.discard(model)
+            if not data:
+                # 该型号确认无产品图：本轮不再重试
+                self._icon_failed.add(model)
+                continue
+            if icon_cache.save_bytes(model, data):
+                pix = icon_cache.load_pixmap(model, 40)
+                if pix is not None:
+                    self._card_pix[model] = pix
+                    self._apply_card_icon(model, pix)
+
+    def _on_card_icons_failed(self, error: Exception) -> None:
+        self._icon_fetching = False
+        todo = list(getattr(self, "_icon_todo", ()) or ())
+        self._icon_failed.update(todo)
+        self._icon_pending.clear()
+        logger.warning("拉取产品图失败: %s", error)
+
+    def _apply_card_icon(self, model: str, pixmap) -> None:
+        if not self._show_icons:
+            return
+        for card in self._cards.values():
+            if card.device.model == model:
+                card.set_icon(pixmap)
+
+    # ---------- 详情 ----------
+
+    def _on_open_device(self, did: str) -> None:
+        device = next((d for d in self._all_devices if d.did == did), None)
+        if device is None:
+            return
+        dialog = DeviceDetailDialog(
+            self._service, self._jobs, device, self,
+            on_value_written=self._broadcast_quick_value_written)
+        # 详情内取到温湿度后直接回写卡片与缓存（手动刷新的即时反馈）
+        dialog.panel.metrics_updated.connect(self._on_detail_metrics)
+        # 详情内重命名/恢复默认 → 同步卡片、托盘与本地列表
+        dialog.panel.renamed.connect(self._on_device_name_changed)
+        dialog.load()
+        dialog.exec()
+        dialog.panel.metrics_updated.disconnect(self._on_detail_metrics)
+        dialog.panel.renamed.disconnect(self._on_device_name_changed)
+        dialog.deleteLater()
+        # 详情期间可能在面板里改过开关，关闭后读一次回填卡片；
+        # 无开关能力的设备返回 None 直接跳过
+        if did in self._cards:
+            self._jobs.submit(
+                lambda: self._service.power_state(did),
+                on_success=lambda state, d=did: self._apply_power_state(d, state),
+                on_error=lambda exc: logger.warning("详情关闭后回读开关失败: %s", exc),
+            )
+
+    def _on_device_name_changed(self, did: str, name: str) -> None:
+        """详情页重命名/恢复默认后：覆盖本地展示并重建主界面卡片。"""
+        device = next((d for d in self._all_devices if d.did == did), None)
+        if device is None:
+            return
+        device.name = name
+        self._name_overrides = device_names.load()
+        self._rebuild_grid()
+        self._update_tray_devices()
+        # 桌面小组件显示的设备名随重命名实时同步
+        if self._widget_mgr is not None:
+            try:
+                self._widget_mgr.sync_device_meta(self._all_devices)
+            except Exception:
+                pass
+
+    # ---------- 资源 ----------
+
+    def closeEvent(self, event) -> None:  # noqa: N802 (Qt 命名约定)
+        # 托盘常驻时关闭窗口仅隐藏到托盘，不退出（除非走托盘"退出"）
+        # 用户可在设置中关闭此行为，此时直接退出
+        from app.core.settings_store import get_minimize_to_tray
+        if get_minimize_to_tray() and not self._force_quit and self._tray is not None:
+            # 隐藏窗口前确保托盘图标可见，常驻运行等待托盘重新呼出
+            try:
+                self._tray.set_tray_visible(True)
+            except Exception:
+                pass
+            event.ignore()
+            self.hide()
+            # 常驻托盘态把物理页交还系统，任务管理器占用显著下降
+            from app import trim_working_set
+            trim_working_set()
+            return
+        # 真正退出
+        if self._all_devices:
+            device_cache.save(self._all_devices, self._known_power, self._metrics,
+                              order=self._custom_order)
+        if self._tray is not None:
+            try:
+                self._tray.hide_quick()
+                self._tray._tray.hide()
+            except Exception:
+                pass
+        if self._widget_mgr is not None:
+            try:
+                self._widget_mgr.shutdown()
+            except Exception:
+                pass
+        self._jobs.shutdown()
+        super().closeEvent(event)
+        # quitOnLastWindowClosed 为 False（托盘常驻需要），关闭窗口不会自动
+        # 退出事件循环；关闭托盘设置时需显式退出让进程真正结束
+        from PySide6.QtWidgets import QApplication
+        app = QApplication.instance()
+        if app is not None:
+            app.quit()
+

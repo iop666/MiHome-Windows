@@ -1,0 +1,1243 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# MiHome-Windows: 米家设备的 Windows 桌面控制端
+# Copyright (C) 2026 MiHome-Windows contributors
+"""设置窗口：无边框可拖拽面板 + 背部暗色遮罩，与设备详情页同款观感。
+
+设置项按「主题界面 / 应用功能」两分类展示：标题下方的横向 tab 切换
+分类，内容区切页时做整体淡入过渡（与主页切换房间同款），避免直接
+替换带来的生硬变化。
+"""
+
+from PySide6.QtCore import QEvent, QPropertyAnimation, Qt
+from PySide6.QtGui import QFont
+from PySide6.QtWidgets import (
+    QDialog,
+    QFrame,
+    QGraphicsOpacityEffect,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
+
+from app.core import settings_store
+from app.core.models import is_speaker
+from app.ui.overlay_dialog import OverlayDialog
+from app.ui.si_theme import (
+    SiColors,
+    accent_options,
+    apply_combo_qss,
+    themed_combo,
+    themed_switch,
+    themed_tab_button,
+)
+
+# 下拉文案 -> 设置值
+_THEME_MODE_LABELS = {"system": "跟随系统", "light": "浅色模式", "dark": "深色模式"}
+_THEME_LABEL_TO_MODE = {v: k for k, v in _THEME_MODE_LABELS.items()}
+
+# 小组件外观（可单独固定明暗）
+_WIDGET_THEME_LABELS = {"app": "跟随应用", "light": "浅色", "dark": "深色"}
+
+_TAB_APPEARANCE, _TAB_TRAY, _TAB_FEATURES, _TAB_WIDGETS = 0, 1, 2, 3
+_TAB_TITLES = ("主题界面", "托盘设置", "应用功能", "小组件")
+# 切页淡入时长：与主页房间切换同款
+_FADE_MS = 160
+
+
+def _sync_switch(switch) -> None:
+    """siui 开关进度同步：setChecked 后须手动对齐动画内部 current。"""
+    switch.progress = 1 if switch.isChecked() else 0
+    switch.progress_ani.fromProperty()
+
+
+class _PagesHost(QWidget):
+    """叠放两页的容器：尺寸变化时把两页同步铺满，保持完全重叠。
+
+    两页刻意不进布局而是绝对定位，同一时刻只有一页可见，切换即
+    hide/show + 新页淡入。
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet("background: transparent;")
+        self._pages: list[QWidget] = []
+
+    def add_page(self, page: QWidget) -> None:
+        page.setParent(self)
+        self._pages.append(page)
+        page.setGeometry(self.rect())
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        for page in self._pages:
+            page.setGeometry(self.rect())
+
+
+class SettingsDialog(OverlayDialog):
+    """设置对话框：暗色遮罩 + 居中圆角面板，可拖拽。"""
+
+    def __init__(self, parent=None, devices=None, widget_manager=None,
+                 service=None, jobs=None):
+        super().__init__(parent)
+        self._devices = devices or []
+        self._widget_mgr = widget_manager
+        self._service = service
+        self._jobs = jobs
+        self.setWindowTitle("设置")
+        # 尺寸由 showEvent 按主窗口显隐决定：可见时覆盖主窗口，隐藏时铺满屏幕
+        self._header_drag_pos = None
+        self._current_tab = _TAB_APPEARANCE
+
+        # ---- 圆角面板：居中显示 ----
+        # 直接用基类的 overlayPanel 对象名与配套样式；改名会让
+        # 基类样式表的选择器对不上，面板退化为透明底
+        panel = self._panel
+        # 分类展示后单项行更少，面板放大到主窗口约八成，减少滚动
+        if parent is not None:
+            pw = max(720, int(parent.width() * 0.78))
+            ph = max(520, int(parent.height() * 0.82))
+        else:
+            pw, ph = 720, 520
+        panel.setFixedSize(pw, ph)
+
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(20, 14, 20, 18)
+        lay.setSpacing(12)
+
+        # ---- 标题栏：可拖拽 ----
+        title_bar = QFrame(panel)
+        title_bar.setObjectName("settingsTitleBar")
+        title_bar.setStyleSheet("QFrame#settingsTitleBar { background: transparent; }")
+        title_bar.setCursor(Qt.CursorShape.OpenHandCursor)
+        self._title_bar = title_bar
+        title_bar.installEventFilter(self)
+
+        header = QHBoxLayout(title_bar)
+        header.setContentsMargins(4, 2, 4, 2)
+        header.setSpacing(8)
+        self._title_label = QLabel("设置")
+        self._title_label.setFont(QFont("Microsoft YaHei UI", 13, QFont.Weight.DemiBold))
+        header.addWidget(self._title_label)
+        header.addStretch(1)
+        lay.addWidget(title_bar)
+
+        # ---- 分类 tab：标题下方靠左横向排布 ----
+        tab_row = QHBoxLayout()
+        tab_row.setContentsMargins(4, 0, 4, 0)
+        tab_row.setSpacing(8)
+        self._tab_buttons: list = []
+        for index, title in enumerate(_TAB_TITLES):
+            btn = themed_tab_button(title)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.setFixedHeight(32)
+            btn.clicked.connect(lambda _, i=index: self._switch_tab(i))
+            tab_row.addWidget(btn)
+            self._tab_buttons.append(btn)
+        tab_row.addStretch(1)
+        lay.addLayout(tab_row)
+
+        # ---- 内容区：两页叠放，靠动画切隐 ----
+        self._pages_host = _PagesHost(panel)
+        lay.addWidget(self._pages_host, stretch=1)
+
+        self._appearance_scroll = self._build_appearance_page()
+        self._tray_scroll = self._build_tray_page()
+        self._features_scroll = self._build_features_page()
+        self._widget_scroll = self._build_widget_page()
+        self._pages_host.add_page(self._appearance_scroll)
+        self._pages_host.add_page(self._tray_scroll)
+        self._pages_host.add_page(self._features_scroll)
+        self._pages_host.add_page(self._widget_scroll)
+
+        # ---- 底部按钮 ----
+        btn_row = QHBoxLayout()
+        btn_row.addStretch(1)
+        self._done_btn = QPushButton("完成")
+        self._done_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._done_btn.clicked.connect(self._save_and_accept)
+        btn_row.addWidget(self._done_btn)
+        lay.addLayout(btn_row)
+
+        # 全部内联样式集中一处：构造与主题切换（retheme）共用
+        self._apply_styles()
+        self._on_tray_toggled(self._tray_toggle.isChecked())
+        self._apply_voice_fab_state(self._has_speaker)
+        self._apply_speaker_state(self._has_speaker)
+        self._apply_autostart_state(self._autostart_supported)
+        self._sync_tab_style()
+        self._show_tab(_TAB_APPEARANCE, animated=False)
+        # 主界面可能已拖拽过卡片/带历史：进设置即同步撤销按钮可用态
+        self._refresh_order_controls()
+
+    # ---------- 页面构建 ----------
+
+    def _make_item(self, title: str, desc: str):
+        """设置项卡片外壳：返回 (卡片, 标题, 描述, 行布局)，控件由调用方塞入行。"""
+        item = QFrame()
+        row = QHBoxLayout(item)
+        row.setContentsMargins(14, 12, 14, 12)
+        row.setSpacing(12)
+        texts = QVBoxLayout()
+        texts.setContentsMargins(0, 0, 0, 0)
+        texts.setSpacing(4)
+        texts.addStretch(1)
+        label = QLabel(title)
+        texts.addWidget(label)
+        desc_label = QLabel(desc)
+        desc_label.setWordWrap(True)
+        desc_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        texts.addWidget(desc_label)
+        texts.addStretch(1)
+        row.addLayout(texts, stretch=1)
+        return item, label, desc_label, row
+
+    def _build_scroll(self, items: list[QFrame]) -> QScrollArea:
+        """一组设置项卡片装进滚动区：项数增多/高缩放时滚动代替裁切。"""
+        host = QWidget()
+        host.setStyleSheet("background: transparent;")
+        body = QVBoxLayout(host)
+        body.setContentsMargins(8, 6, 8, 0)
+        body.setSpacing(8)
+        for item in items:
+            body.addWidget(item)
+        body.addStretch(1)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        scroll.setStyleSheet(
+            "QScrollArea { background: transparent; border: none; }"
+            "QScrollBar:vertical { background: transparent; width: 6px; margin: 0; }"
+            "QScrollBar::handle:vertical { background: #35363f; border-radius: 3px; min-height: 30px; }"
+            "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical,"
+            "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { height: 0; background: none; }")
+        scroll.setWidget(host)
+        return scroll
+
+    def _build_appearance_page(self) -> QScrollArea:
+        """主题界面：主题配色、界面缩放比例、小爱悬浮对话按钮。"""
+        # ── 主题配色下拉（跟随系统 / 浅色 / 深色） ──
+        self._theme_item, self._theme_label, self._theme_desc, theme_row = self._make_item(
+            "主题配色",
+            "切换界面明暗配色；「跟随系统」随 Windows 深浅色模式自动变化")
+        self._original_mode = settings_store.get_theme_mode()
+        self._pending_mode = self._original_mode
+        self._theme_combo = themed_combo(
+            [_THEME_MODE_LABELS[m] for m in ("system", "light", "dark")],
+            current=_THEME_MODE_LABELS[self._pending_mode])
+        self._theme_combo.currentTextChanged.connect(self._on_theme_selected)
+        theme_row.addWidget(self._theme_combo)
+
+        # ── 主题色（强调色）多配色下拉（即选即预览，与主题下拉同款） ──
+        self._accent_item, self._accent_label, self._accent_desc, accent_row = \
+            self._make_item(
+                "主题色",
+                "界面强调色：主按钮、开关选中态、房间 tab、选中项与滑块等"
+                "随选择变色，提供 6 套配色")
+        self._original_accent = settings_store.get_accent()
+        self._pending_accent = self._original_accent
+        self._accent_pairs = accent_options()
+        accent_label = dict(self._accent_pairs).get(
+            self._pending_accent, dict(self._accent_pairs)["green"])
+        self._accent_combo = themed_combo(
+            [label for _, label in self._accent_pairs], current=accent_label)
+        self._accent_combo.currentTextChanged.connect(self._on_accent_selected)
+        accent_row.addWidget(self._accent_combo)
+
+        # ── 界面缩放比例（高 DPI 屏幕微调；更改后重启生效） ──
+        self._scale_item, self._scale_label, self._scale_desc, scale_row = self._make_item(
+            "界面缩放比例",
+            "软件已按系统 DPI 自动适配（以 96DPI/100% 为基准，缩放越大界面自动越"
+            "小不放大）；此项为在此基础上的个人微调乘数，适用于还想整体放大/缩小"
+            "界面的情况，更改后需重启应用生效")
+        self._original_ui_scale = settings_store.get_ui_scale()
+        self._pending_ui_scale = self._original_ui_scale
+        # 可编辑下拉：预设档位 + 直接键入任意百分比（无级调整，50-200）
+        scale_labels = [f"{round(s * 100):d}%" for s in sorted(settings_store.UI_SCALES)]
+        # 用 :g 保留小数（重启后回显 137.5% 而非 round 取整的 138%）
+        current_pct = f"{self._pending_ui_scale * 100:g}%"
+        self._scale_combo = themed_combo(scale_labels, current=current_pct, editable=True)
+        # 输入校验：不设 validator——任何 validator 都会在校验中间态时
+        # 干扰增量输入（QDoubleValidator 范围校验拒绝"1"、"12"这类中间值，
+        # 正是「打字没反应」的根因）。输入完全自由，非法值在提交时
+        # _on_scale_edited 用 float() 解析并回显兜底。
+        # 聚焦自动全选已由 themed_combo 内部 _SelectAllLineEdit 处理。
+        # 回车/失焦提交解析；选档位用 activated（仅用户从弹出列表点选时
+        # 触发，不会因输入过程中 currentText 变化而误触发覆盖输入）
+        self._scale_combo.lineEdit().returnPressed.connect(self._on_scale_edited)
+        self._scale_combo.lineEdit().editingFinished.connect(self._on_scale_edited)
+        self._scale_combo.activated.connect(self._on_scale_selected)
+        scale_row.addWidget(self._scale_combo)
+
+        # ── 小爱同学悬浮对话按钮 ──
+        self._has_speaker = any(is_speaker(d) and d.online for d in self._devices)
+        self._fab_item, self._fab_label, self._fab_desc, fab_row = self._make_item(
+            "小爱同学悬浮对话按钮",
+            "启用位于主界面右下角的小爱同学对话悬浮按钮（需设备里有小爱音箱）")
+        self._voice_fab_toggle = themed_switch()
+        self._voice_fab_toggle.setChecked(settings_store.get_voice_fab_enabled())
+        _sync_switch(self._voice_fab_toggle)
+        fab_row.addWidget(self._voice_fab_toggle)
+
+        # ── 显示设备产品图 ──
+        self._icons_item, self._icons_label, self._icons_desc, icons_row = self._make_item(
+            "设备产品图",
+            "主界面设备卡片左侧显示产品图片（联网拉取一次后本地缓存）；关闭可节省"
+            "文本区域，配合下方「主卡片宽度」使用")
+        self._icons_toggle = themed_switch()
+        self._icons_toggle.setChecked(settings_store.get_show_device_icons())
+        _sync_switch(self._icons_toggle)
+        icons_row.addWidget(self._icons_toggle)
+
+        # ── 主界面卡片宽度 ──
+        self._width_item, self._width_label, self._width_desc, width_row = self._make_item(
+            "主卡片宽度",
+            "设备卡片宽度：产品图开启后建议选较宽一档，避免名称/房间文字被挤压；"
+            "改动即时生效")
+        self._card_width_options: list[tuple[int, str]] = [
+            (176, "紧凑 176"), (202, "标准 202"), (232, "较宽 232"),
+            (262, "加宽 262"), (300, "超宽 300"),
+        ]
+        cur_w = settings_store.get_card_width()
+        cur_w_lab = dict((w, t) for w, t in self._card_width_options)[cur_w]
+        self._width_combo = themed_combo(
+            [t for _, t in self._card_width_options], current=cur_w_lab)
+        width_row.addWidget(self._width_combo)
+
+        return self._build_scroll([
+            self._theme_item, self._accent_item, self._scale_item,
+            self._fab_item, self._icons_item, self._width_item,
+        ])
+
+    def _build_tray_page(self) -> QScrollArea:
+        """托盘设置：系统托盘相关项集中归类。"""
+        # ── 带快捷操作面板的系统托盘 ──
+        self._tray_item, self._tray_label, self._tray_desc, tray_row = self._make_item(
+            "带快捷操作面板的系统托盘",
+            "开启后，关闭主窗口时将最小化到系统托盘并启用托盘快捷操作面板")
+        self._tray_toggle = themed_switch()
+        self._tray_toggle.setChecked(settings_store.get_minimize_to_tray())
+        _sync_switch(self._tray_toggle)
+        tray_row.addWidget(self._tray_toggle)
+        self._tray_toggle.toggled.connect(self._on_tray_toggled)
+
+        # ── 以系统托盘方式启动（子设置，依赖父开关） ──
+        self._start_min_item, self._start_min_label, self._start_min_desc, start_min_row = \
+            self._make_item(
+                "以系统托盘方式启动",
+                "开启后，启动软件时将以系统托盘的方式静默启动，不唤出主界面（该功能需开启系统托盘功能可选）")
+        self._start_min_toggle = themed_switch()
+        self._start_min_toggle.setChecked(settings_store.get_start_minimized())
+        _sync_switch(self._start_min_toggle)
+        start_min_row.addWidget(self._start_min_toggle)
+
+        # ── 托盘设备常显调节（免点击展开） ──
+        self._always_item, self._always_label, self._always_desc, always_row = \
+            self._make_item(
+                "托盘设备常显调节",
+                "设备行直接展示所选调节项（亮度/色温等），无需先点「调节」展开；"
+                "开启后会切换为单列整行常显，托盘右上角的单列/双列切换按钮将"
+                "隐藏（默认关闭）")
+        self._always_toggle = themed_switch()
+        self._always_toggle.setChecked(settings_store.get_tray_always_expand())
+        _sync_switch(self._always_toggle)
+        always_row.addWidget(self._always_toggle)
+
+        # ── 托盘快捷窗口弹出位置 ──
+        self._pos_item, self._pos_label, self._pos_desc, pos_row = self._make_item(
+            "托盘快捷窗口弹出位置",
+            "点托盘图标时窗口出现的位置：右下角为默认；「鼠标位置上方」会让窗口"
+            "贴着鼠标所在托盘图标展开，图标在屏幕中部时无需大距离移动鼠标")
+        self._pos_options: list[tuple[str, str]] = [
+            ("bottom_right", "屏幕右下角"),
+            ("cursor", "跟随鼠标位置上方"),
+        ]
+        self._pos_combo = themed_combo(
+            [label for _, label in self._pos_options],
+            current=dict(self._pos_options)[settings_store.get_tray_position()])
+        pos_row.addWidget(self._pos_combo)
+
+        # ── 托盘图标颜色 ──
+        self._color_item, self._color_label, self._color_desc, color_row = \
+            self._make_item(
+                "托盘图标颜色",
+                "系统托盘常驻图标配色：白色为默认，可选黑色或米家品牌绿；"
+                "切换后立即刷新")
+        self._icon_color_options: list[tuple[str, str]] = [
+            (settings_store.TRAY_ICON_WHITE, "白色（默认）"),
+            (settings_store.TRAY_ICON_BLACK, "黑色"),
+            (settings_store.TRAY_ICON_GREEN, "品牌绿"),
+        ]
+        self._color_combo = themed_combo(
+            [label for _, label in self._icon_color_options],
+            current=dict(self._icon_color_options)[
+                settings_store.get_tray_icon_color()])
+        self._color_combo.currentTextChanged.connect(
+            self._on_tray_icon_color_changed)
+        color_row.addWidget(self._color_combo)
+
+        return self._build_scroll([
+            self._tray_item, self._start_min_item,
+            self._always_item, self._pos_item, self._color_item,
+        ])
+
+    def _build_features_page(self) -> QScrollArea:
+        """应用功能：开机自启动、默认指挥的音箱、隐藏无功能设备、自动更新。"""
+        # ── 开机自启动（写注册表 HKCU Run，默认关闭） ──
+        self._autostart_item, self._autostart_label, self._autostart_desc, autostart_row = \
+            self._make_item("开机自启动", "")
+        self._autostart_toggle = themed_switch()
+        # 自启动仅构建版支持：开发模式置灰并提示，保存时清理残留注册项
+        self._autostart_supported = settings_store.autostart_supported()
+        if self._autostart_supported:
+            self._autostart_desc.setText(
+                "开启后，Windows 登录时自动启动米家（可与「以系统托盘方式启动」搭配静默运行）")
+            self._autostart_toggle.setChecked(settings_store.get_autostart())
+        else:
+            self._autostart_desc.setText(
+                "仅构建版（build.ps1 产物 dist/MiHome-Windows.exe）支持；当前为源码运行模式，"
+                "保存设置时将清除残留的自启动注册项")
+        _sync_switch(self._autostart_toggle)
+        self._autostart_toggle.setEnabled(self._autostart_supported)
+        autostart_row.addWidget(self._autostart_toggle)
+
+        # ── 默认输出音箱（小爱指令发往哪台音箱） ──
+        self._speaker_item, self._speaker_label, self._speaker_desc, speaker_row = self._make_item(
+            "默认指挥的音箱",
+            "小爱语音指令默认发往的音箱；选择「自动」时使用设备列表中第一个在线音箱")
+        # 全部音箱（含离线，离线时运行中自动回退）；在线优先排序
+        speakers = sorted(
+            (d for d in self._devices if is_speaker(d)),
+            key=lambda d: (0 if d.online else 1, d.name, d.did),
+        )
+        self._speaker_options: list[tuple[str, str]] = [
+            ("", "自动（第一个在线音箱）"),
+        ] + [(d.did, f"{d.name}（{d.room_name}）") for d in speakers]
+        current_did = settings_store.get_default_speaker_did()
+        cur_label = next(
+            (label for did, label in self._speaker_options if did == current_did),
+            self._speaker_options[0][1],
+        )
+        self._speaker_combo = themed_combo(
+            [label for _, label in self._speaker_options], current=cur_label)
+        # 音箱名含房间号可能较长：按最长选项文本自适应宽度
+        # （字体度量 + 箭头/内边距余量），避免选项被裁切
+        fm = self._speaker_combo.fontMetrics()
+        option_labels = [label for _, label in self._speaker_options]
+        text_w = max((fm.horizontalAdvance(t) for t in option_labels), default=120)
+        self._speaker_combo.setFixedWidth(min(max(text_w + 48, 150), 300))
+        speaker_row.addWidget(self._speaker_combo)
+
+        # ── 隐藏无可控制功能的设备 ──
+        self._hide_item, self._hide_label, self._hide_desc, hide_row = self._make_item(
+            "隐藏无可控制功能的设备",
+            "无公开功能规格或规格无属性的设备（如部分蓝牙类产品）将不在主页显示")
+        self._hide_toggle = themed_switch()
+        self._hide_toggle.setChecked(settings_store.get_hide_no_func_devices())
+        _sync_switch(self._hide_toggle)
+        hide_row.addWidget(self._hide_toggle)
+
+        # ── 撤销/恢复卡片移动（描述在 refresh_order_controls 里动态刷新） ──
+        self._undo_item, self._undo_label, self._undo_desc, undo_row = self._make_item(
+            "撤销/恢复卡片移动", "")
+        self._undo_btn = QPushButton("撤销")
+        self._undo_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._undo_btn.clicked.connect(self._on_order_undo)
+        undo_row.addWidget(self._undo_btn)
+        self._redo_btn = QPushButton("恢复")
+        self._redo_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._redo_btn.clicked.connect(self._on_order_redo)
+        undo_row.addWidget(self._redo_btn)
+
+        # ── 恢复默认排序 ──
+        self._reset_item, self._reset_label, self._reset_desc, reset_row = self._make_item(
+            "恢复默认排序",
+            "清除自定义顺序，恢复默认排列：先按家庭/房间筛选，再按「在线优先 + "
+            "名称」排序（此操作同样可撤销）")
+        self._reset_btn = QPushButton("恢复默认排序")
+        self._reset_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._reset_btn.clicked.connect(self._on_order_reset)
+        reset_row.addWidget(self._reset_btn)
+
+        # ── 自动检测新版本 ──
+        self._update_item, self._update_label, self._update_desc, update_row = self._make_item(
+            "自动检测新版本",
+            "开启时，会在每次启动应用时自动从 Github 仓库获取新版本信息，"
+            "有则提示更新")
+        self._update_toggle = themed_switch()
+        self._update_toggle.setChecked(settings_store.get_check_update_enabled())
+        _sync_switch(self._update_toggle)
+        update_row.addWidget(self._update_toggle)
+
+        return self._build_scroll([
+            self._autostart_item, self._speaker_item,
+            self._hide_item, self._undo_item, self._reset_item,
+            self._update_item,
+        ])
+
+    # ---------- 分类切换 ----------
+
+    def _sync_tab_style(self) -> None:
+        for index, btn in enumerate(self._tab_buttons):
+            # siui 切换按钮的选中观感由 checked 状态自绘驱动
+            if btn.isChecked() != (index == self._current_tab):
+                btn.setChecked(index == self._current_tab)
+
+    def _switch_tab(self, index: int) -> None:
+        same = (index == self._current_tab)
+        self._current_tab = index
+        # 先纠正 checked：SiToggleButtonRefactor 可点击取消选中，
+        # 反复点同一 tab 会让高亮丢失，这里无条件重新同步
+        self._sync_tab_style()
+        if same:
+            return
+        self._show_tab(index, animated=True)
+
+    def _show_tab(self, index: int, animated: bool) -> None:
+        """切页：隐藏全部其它页后让目标页淡入（三页及以上关键：一次
+        只藏一页会残留其它页重叠，表现为设置界面内容错乱/空白）。"""
+        pages = (self._appearance_scroll, self._tray_scroll,
+                 self._features_scroll, self._widget_scroll)
+        for i, page in enumerate(pages):
+            if i != index:
+                page.hide()
+        incoming = pages[index]
+        # 清掉可能残留的旧效果，避免快速连续切换时叠在新一轮动画上
+        incoming.setGraphicsEffect(None)
+        incoming.show()
+        if not animated:
+            return
+        effect = QGraphicsOpacityEffect(incoming)
+        effect.setOpacity(0.0)
+        incoming.setGraphicsEffect(effect)
+        anim = QPropertyAnimation(effect, b"opacity", self)
+        anim.setDuration(_FADE_MS)
+        anim.setStartValue(0.0)
+        anim.setEndValue(1.0)
+
+        def _cleanup() -> None:
+            # 快速连续切换时旧动画的 finished 会迟到，只清理仍属
+            # 自己的效果，避免误删新一轮动画的透明度效果
+            if incoming.graphicsEffect() is effect:
+                incoming.setGraphicsEffect(None)
+
+        anim.finished.connect(_cleanup)
+        anim.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
+
+    # ---------- 小组件 ----------
+
+    def _build_widget_page(self) -> QScrollArea:
+        """小组件：添加/移除、缩放(1%步进)、锁定/置顶、背景透明度。"""
+        host = QWidget()
+        host.setStyleSheet("background: transparent;")
+        body = QVBoxLayout(host)
+        body.setContentsMargins(8, 6, 8, 0)
+        body.setSpacing(8)
+
+        head = QHBoxLayout()
+        title = QLabel("小组件")
+        title.setStyleSheet(
+            f"color: {SiColors.TEXT_PRIMARY}; background: transparent; font-size: 11pt;")
+        head.addWidget(title)
+        head.addStretch(1)
+        self._widget_add_btn = QPushButton("+ 添加小组件")
+        self._widget_add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._widget_add_btn.setFixedHeight(30)
+        self._widget_add_btn.clicked.connect(self._widget_add)
+        head.addWidget(self._widget_add_btn)
+        body.addLayout(head)
+
+        desc = QLabel(
+            "把单个或多个设备固定为小组件（只显示设备控件、无标题栏）："
+            "解锁后按住卡片空白处即可拖动摆放，点击 −/+ 以 1% 步进缩放；"
+            "「锁定」后不可误拖，需回到本页解锁；「置顶」让小组件浮在其他"
+            "窗口之上；「背景透明」调节卡片透出桌面程度；「外观」可让本组件"
+            "单独固定浅色/深色；每个小组件还可随时「隐藏/显示」。")
+        desc.setWordWrap(True)
+        desc.setStyleSheet(
+            f"color: {SiColors.TEXT_SECONDARY}; background: transparent; font-size: 8pt;")
+        body.addWidget(desc)
+
+        self._widget_list_host = QWidget()
+        self._widget_list_host.setStyleSheet("background: transparent;")
+        self._widget_list_lay = QVBoxLayout(self._widget_list_host)
+        self._widget_list_lay.setContentsMargins(0, 0, 0, 0)
+        self._widget_list_lay.setSpacing(8)
+        body.addWidget(self._widget_list_host)
+        body.addStretch(1)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        scroll.setStyleSheet(
+            "QScrollArea { background: transparent; border: none; }"
+            f"QScrollBar:vertical {{ background: transparent; width: 6px; margin: 0; }}"
+            f"QScrollBar::handle:vertical {{ background: {SiColors.SCROLLBAR};"
+            f" border-radius: 3px; min-height: 30px; }}")
+        scroll.setWidget(host)
+        self._refresh_widget_rows()
+        return scroll
+
+    def _widget_add(self) -> None:
+        """选择设备并创建一个小组件。"""
+        if not self._devices:
+            from app.ui.toast import Toast
+            Toast.info(self, "请先刷新获取设备列表", 2500)
+            return
+        from app.ui.widget_dialogs import DevicePickDialog
+        dlg = DevicePickDialog(self._devices, self)
+        dlg.exec()
+        dids = dlg.selected_dids()
+        if not dids:
+            return
+        dev_map = {d.did: d for d in self._devices}
+        meta = {
+            d: {"name": dev_map[d].name, "room": dev_map[d].room_name,
+                "online": dev_map[d].online}
+            for d in dids
+        }
+        if self._widget_mgr is not None:
+            cfg = self._widget_mgr.add(dids)
+            if cfg is not None:
+                self._widget_mgr.update(cfg["id"], "devices", meta)
+        self._refresh_widget_rows()
+
+    def _refresh_widget_rows(self) -> None:
+        """按当前 widget 配置重建列表行。"""
+        if not hasattr(self, "_widget_list_lay"):
+            return
+        while self._widget_list_lay.count():
+            item = self._widget_list_lay.takeAt(0)
+            if w := item.widget():
+                w.deleteLater()
+        if self._widget_mgr is None:
+            hint = QLabel("小组件功能当前不可用（未初始化桌面环境）。")
+            hint.setStyleSheet(
+                f"color: {SiColors.TEXT_SECONDARY}; background: transparent;"
+                f" font-size: 9pt;")
+            self._widget_list_lay.addWidget(hint)
+            return
+        widgets = self._widget_mgr.list_widgets()
+        if not widgets:
+            hint = QLabel("还没有小组件——点上方「+ 添加小组件」把设备固定到桌面。")
+            hint.setStyleSheet(
+                f"color: {SiColors.TEXT_MUTED}; background: transparent;"
+                f" font-size: 9pt;")
+            self._widget_list_lay.addWidget(hint)
+            return
+        for index, cfg in enumerate(widgets):
+            self._widget_list_lay.addWidget(
+                self._make_widget_row(cfg, index))
+
+    def _widget_row_btn(self, text: str, active: bool = False) -> QPushButton:
+        btn = QPushButton(text)
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.setFixedHeight(26)
+        btn.setStyleSheet(
+            f"QPushButton {{ background: {SiColors.THEME if active else SiColors.SURFACE};"
+            f" color: {SiColors.ON_THEME_TEXT if active else SiColors.TEXT_PRIMARY};"
+            f" border: none; border-radius: 7px; padding: 0 10px; font-size: 9pt; }}"
+            f"QPushButton:hover {{ background: {SiColors.THEME_HOVER if active else SiColors.BTN_HOVER}; }}")
+        return btn
+
+    def _make_widget_row(self, cfg: dict, index: int) -> QFrame:
+        from PySide6.QtWidgets import QSlider
+
+        row = QFrame()
+        row.setObjectName("widgetRow")
+        row.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        row.setStyleSheet(
+            f"QFrame#widgetRow {{ background: {SiColors.CARD};"
+            f" border: 1px solid {SiColors.LINE}; border-radius: 10px; }}")
+        lay = QVBoxLayout(row)
+        lay.setContentsMargins(12, 10, 12, 10)
+        lay.setSpacing(6)
+        wid = cfg["id"]
+
+        title_row = QHBoxLayout()
+        # 设备名在桌面小组件上直接显示（主页面改名即同步），
+        # 不再需要“设置页专属”的名称输入框
+        ops_btn = QPushButton("控件…")
+        ops_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        ops_btn.setFixedSize(56, 26)
+        ops_btn.setToolTip("选择这台小组件里每台设备展示的调节控件")
+        ops_btn.setStyleSheet(
+            f"QPushButton {{ background: {SiColors.SURFACE}; border: none;"
+            f" border-radius: 7px; color: {SiColors.TEXT_PRIMARY}; font-size: 9pt; }}"
+            f"QPushButton:hover {{ background: {SiColors.BTN_HOVER}; }}")
+        ops_btn.clicked.connect(lambda _, w=wid: self._widget_ops(w))
+        if self._service is None or self._jobs is None:
+            ops_btn.setEnabled(False)
+        title_row.addWidget(ops_btn)
+        title_row.addStretch(1)
+        del_btn = QPushButton("删除")
+        del_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        del_btn.setFixedHeight(24)
+        del_btn.setStyleSheet(
+            f"QPushButton {{ background: transparent; border: none;"
+            f" color: {SiColors.DEL_TEXT}; font-size: 9pt; }}"
+            f"QPushButton:hover {{ color: {SiColors.DANGER_TEXT}; }}")
+        del_btn.clicked.connect(lambda _, w=wid: self._widget_remove(w))
+        title_row.addWidget(del_btn)
+        lay.addLayout(title_row)
+
+        # 外观行：小组件单独固定浅/深色，或跟随应用主题
+        theme_row = QHBoxLayout()
+        theme_lab = QLabel("外观")
+        theme_lab.setStyleSheet(
+            f"color: {SiColors.TEXT_SECONDARY}; background: transparent; font-size: 9pt;")
+        theme_row.addWidget(theme_lab)
+        theme_row.addStretch(1)
+        cur_mode = cfg.get("theme_mode") or "app"
+        self._widget_theme_combo = themed_combo(
+            [_WIDGET_THEME_LABELS[m] for m in ("app", "light", "dark")],
+            current=_WIDGET_THEME_LABELS.get(
+                cur_mode, _WIDGET_THEME_LABELS["app"]))
+        self._widget_theme_combo.setFixedHeight(26)
+        self._widget_theme_combo.setFixedWidth(150)
+        apply_combo_qss(self._widget_theme_combo)
+        self._widget_theme_combo.set_arrow_color(SiColors.TEXT_SECONDARY)
+        self._widget_theme_combo.currentTextChanged.connect(
+            lambda text, w=wid: self._widget_theme(w, text))
+        theme_row.addWidget(self._widget_theme_combo)
+        lay.addLayout(theme_row)
+
+        # 缩放行：− / 百分比 / +（1% 步进）
+        scale_row = QHBoxLayout()
+        scale_lab = QLabel("缩放")
+        scale_lab.setStyleSheet(
+            f"color: {SiColors.TEXT_SECONDARY}; background: transparent; font-size: 9pt;")
+        scale_row.addWidget(scale_lab)
+        scale_row.addStretch(1)
+        minus = QPushButton("−")
+        minus.setFixedSize(26, 26)
+        minus.setCursor(Qt.CursorShape.PointingHandCursor)
+        minus.clicked.connect(
+            lambda _, w=wid: self._widget_scale(w, -1))
+        scale_row.addWidget(minus)
+        scale_val = QLabel(f"{cfg['scale']}%")
+        scale_val.setAlignment(Qt.AlignCenter)
+        scale_val.setMinimumWidth(48)
+        scale_val.setStyleSheet(
+            f"color: {SiColors.TEXT_PRIMARY}; background: transparent; font-size: 10pt;")
+        scale_row.addWidget(scale_val)
+        plus = QPushButton("+")
+        plus.setFixedSize(26, 26)
+        plus.setCursor(Qt.CursorShape.PointingHandCursor)
+        plus.clicked.connect(
+            lambda _, w=wid: self._widget_scale(w, 1))
+        scale_row.addWidget(plus)
+        for b in (minus, plus):
+            b.setStyleSheet(
+                f"QPushButton {{ background: {SiColors.SURFACE}; border: none;"
+                f" border-radius: 7px; color: {SiColors.TEXT_PRIMARY}; font-size: 12pt; }}"
+                f"QPushButton:hover {{ background: {SiColors.BTN_HOVER}; }}")
+        lay.addLayout(scale_row)
+
+        # 锁定 / 置顶
+        opt_row = QHBoxLayout()
+        opt_row.addStretch(1)
+        locked_btn = self._widget_row_btn(
+            "🔓 解锁移动" if cfg["locked"] else "🔒 锁定", active=cfg["locked"])
+        locked_btn.setToolTip("解锁后按住小组件空白处即可拖动位置")
+        locked_btn.clicked.connect(
+            lambda _, w=wid, l=cfg["locked"]: self._widget_update(
+                w, "locked", not l))
+        opt_row.addWidget(locked_btn)
+        top_btn = self._widget_row_btn(
+            "置顶中" if cfg["topmost"] else "普通层", active=cfg["topmost"])
+        top_btn.setToolTip("置顶：小组件浮在其他窗口之上")
+        top_btn.clicked.connect(
+            lambda _, w=wid, t=cfg["topmost"]: self._widget_update(
+                w, "topmost", not t))
+        opt_row.addWidget(top_btn)
+        # 显示/隐藏：添加完成后随时可在列表里显隐（隐藏不删除配置）
+        visible = bool(cfg.get("visible", True))
+        vis_btn = self._widget_row_btn(
+            "隐藏" if visible else "显示", active=visible)
+        vis_btn.setToolTip(
+            "隐藏时小组件从桌面消失（配置保留）；点「显示」可重新出现")
+        vis_btn.clicked.connect(
+            lambda _, w=wid, v=visible: self._widget_update(
+                w, "visible", not v))
+        opt_row.addWidget(vis_btn)
+        lay.addLayout(opt_row)
+
+        # 背景透明度
+        alpha_row = QHBoxLayout()
+        alpha_lab = QLabel("背景透明")
+        alpha_lab.setStyleSheet(
+            f"color: {SiColors.TEXT_SECONDARY}; background: transparent; font-size: 9pt;")
+        alpha_row.addWidget(alpha_lab)
+        slider = QSlider(Qt.Horizontal)
+        slider.setRange(0, 100)
+        slider.setValue(int(cfg["bg_alpha"]))
+        slider.setCursor(Qt.CursorShape.PointingHandCursor)
+        slider.setStyleSheet(
+            f"QSlider::groove:horizontal {{ height: 4px; background: {SiColors.SURFACE};"
+            f" border-radius: 2px; }}"
+            f"QSlider::sub-page:horizontal {{ background: {SiColors.THEME}; border-radius: 2px; }}"
+            f"QSlider::handle:horizontal {{ width: 14px; height: 14px;"
+            f" background: {SiColors.THUMB}; border-radius: 7px; margin: -5px 0; }}")
+        alpha_row.addWidget(slider, 1)
+        alpha_val = QLabel(f"{cfg['bg_alpha']}%")
+        alpha_val.setMinimumWidth(36)
+        alpha_val.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        alpha_val.setStyleSheet(
+            f"color: {SiColors.TEXT_SECONDARY}; background: transparent; font-size: 9pt;")
+        alpha_row.addWidget(alpha_val)
+        slider.valueChanged.connect(
+            lambda v, w=wid, lab=alpha_val: self._widget_alpha(w, v, lab))
+        lay.addLayout(alpha_row)
+        return row
+
+    def _widget_ops(self, wid: str) -> None:
+        if self._widget_mgr is None or self._service is None \
+                or self._jobs is None:
+            return
+        cfg = self._widget_mgr.get_config(wid)
+        if cfg is None:
+            return
+        from app.ui.widget_dialogs import WidgetOpsDialog
+        dlg = WidgetOpsDialog(self._service, self._jobs, cfg, self)
+        dlg.exec()
+        if dlg.result() == QDialog.DialogCode.Accepted:
+            self._widget_mgr.update(wid, "device_ops", dlg.result_map())
+
+    def _widget_theme(self, wid: str, text: str) -> None:
+        """小组件外观切换：跟随应用 / 固定浅色 / 固定深色（即时重建）。"""
+        if self._widget_mgr is None:
+            return
+        value = next(
+            (k for k, label in _WIDGET_THEME_LABELS.items() if label == text),
+            "app")
+        self._widget_mgr.update(wid, "theme_mode", value)
+
+    def _widget_remove(self, wid: str) -> None:
+        if self._widget_mgr is None:
+            return
+        self._widget_mgr.remove(wid)
+        self._refresh_widget_rows()
+
+    def _widget_scale(self, wid: str, delta: int) -> None:
+        if self._widget_mgr is None:
+            return
+        cfg = self._widget_mgr.get_config(wid)
+        if cfg is None:
+            return
+        self._widget_mgr.update(wid, "scale",
+                                min(max(cfg["scale"] + delta, 50), 200))
+        self._refresh_widget_rows()
+
+    def _widget_alpha(self, wid: str, value: int, label) -> None:
+        if self._widget_mgr is None:
+            return
+        label.setText(f"{value}%")
+        self._widget_mgr.update(wid, "bg_alpha", int(value))
+
+    def _widget_update(self, wid: str, field: str, value) -> None:
+        if self._widget_mgr is not None:
+            self._widget_mgr.update(wid, field, value)
+        self._refresh_widget_rows()
+
+    # ---------- 样式 ----------
+
+    def _apply_styles(self) -> None:
+        """主题相关内联样式：构造与 retheme 共用。"""
+        panel_card = f"QFrame {{ background: {SiColors.CARD}; border-radius: 10px; }}"
+        for item in (self._tray_item, self._start_min_item, self._always_item,
+                     self._pos_item, self._color_item,
+                     self._fab_item,
+                     self._theme_item, self._accent_item,
+                     self._autostart_item,
+                     self._speaker_item, self._hide_item, self._scale_item,
+                     self._update_item, self._icons_item, self._width_item,
+                     self._undo_item, self._reset_item):
+            item.setStyleSheet(panel_card)
+            # 高度按内容自适应（不固定）：长描述换行后行自然变高，
+            # 不会被固定 64px 裁掉；短描述保持紧凑。QScrollArea 负责
+            # 项数多/高缩放时的整体滚动。
+            item.setMinimumHeight(0)
+        self._title_label.setStyleSheet(
+            f"color: {SiColors.TEXT_PRIMARY}; background: transparent;")
+        for label in (self._tray_label, self._start_min_label,
+                      self._always_label, self._pos_label, self._color_label,
+                      self._fab_label, self._theme_label, self._accent_label,
+                      self._autostart_label, self._speaker_label,
+                      self._hide_label, self._scale_label,
+                      self._update_label, self._icons_label,
+                      self._width_label, self._undo_label, self._reset_label):
+            label.setStyleSheet(
+                f"color: {SiColors.TEXT_PRIMARY}; background: transparent; font-size: 10pt;")
+        for desc in (self._tray_desc, self._start_min_desc,
+                     self._always_desc, self._pos_desc, self._color_desc,
+                     self._fab_desc, self._theme_desc, self._accent_desc,
+                     self._autostart_desc, self._speaker_desc,
+                     self._hide_desc, self._scale_desc, self._update_desc,
+                     self._icons_desc, self._width_desc,
+                     self._undo_desc, self._reset_desc):
+            desc.setStyleSheet(
+                f"color: {SiColors.TEXT_SECONDARY}; background: transparent; font-size: 7pt;")
+        self._done_btn.setStyleSheet(
+            f"QPushButton {{ background: {SiColors.THEME}; border: none; border-radius: 8px; "
+            f"padding: 7px 18px; color: {SiColors.ON_THEME_TEXT}; font-weight: 600; }}"
+            f"QPushButton:hover {{ background: {SiColors.THEME_HOVER}; }}")
+        order_btn_qss = (
+            f"QPushButton {{ background: {SiColors.SURFACE};"
+            f" border: 1px solid {SiColors.LINE}; border-radius: 7px;"
+            f" padding: 6px 14px; color: {SiColors.TEXT_PRIMARY}; font-size: 9pt; }}"
+            f"QPushButton:hover:enabled {{ background: {SiColors.BTN_HOVER}; }}"
+            f"QPushButton:disabled {{ color: {SiColors.TEXT_FAINT};"
+            f" background: {SiColors.SURFACE}; border-color: {SiColors.SURFACE}; }}")
+        for _btn in (self._undo_btn, self._redo_btn, self._reset_btn):
+            _btn.setStyleSheet(order_btn_qss)
+        apply_combo_qss(self._theme_combo)
+        self._theme_combo.set_arrow_color(SiColors.TEXT_SECONDARY)
+        apply_combo_qss(self._accent_combo)
+        self._accent_combo.set_arrow_color(SiColors.TEXT_SECONDARY)
+        # 界面缩放下拉同样随主题刷新（遗漏曾致切主题后仍保持旧深色样式）
+        apply_combo_qss(self._scale_combo, editable=True)
+        self._scale_combo.set_arrow_color(SiColors.TEXT_SECONDARY)
+        # 托盘弹出位置下拉随主题刷新
+        apply_combo_qss(self._pos_combo)
+        self._pos_combo.set_arrow_color(SiColors.TEXT_SECONDARY)
+        # 托盘图标颜色下拉随主题刷新
+        apply_combo_qss(self._color_combo)
+        self._color_combo.set_arrow_color(SiColors.TEXT_SECONDARY)
+        # 主卡片宽度下拉随主题刷新
+        apply_combo_qss(self._width_combo)
+        self._width_combo.set_arrow_color(SiColors.TEXT_SECONDARY)
+        # 分类 tab 颜色随主题刷新（style_data 是构造期求值的内联色）
+        for btn in self._tab_buttons:
+            from PySide6.QtGui import QColor
+            btn.style_data.button_color = QColor("#00" + SiColors.CARD[1:])
+            btn.style_data.text_color = QColor(SiColors.TEXT_SECONDARY)
+            btn.style_data.toggled_button_color = QColor(SiColors.THEME)
+            btn.style_data.toggled_text_color = QColor(SiColors.ON_THEME_TEXT)
+            btn.style_data.hover_color = QColor("#1a" + SiColors.THEME[1:])
+            btn.style_data.idle_color = QColor("#00" + SiColors.THEME[1:])
+            btn.style_data.click_color = QColor("#40" + SiColors.THEME[1:])
+            btn.reloadStyleData()
+
+    def _apply_autostart_state(self, supported: bool) -> None:
+        """开发模式下灰置自启动行（开关透明度 + 文字变灰）。"""
+        color = SiColors.TEXT_PRIMARY if supported else SiColors.TEXT_DISABLED
+        desc_color = SiColors.TEXT_SECONDARY if supported else SiColors.TEXT_FAINT
+        self._autostart_label.setStyleSheet(
+            f"color: {color}; background: transparent; font-size: 10pt;")
+        self._autostart_desc.setStyleSheet(
+            f"color: {desc_color}; background: transparent; font-size: 7pt;")
+        if supported:
+            self._autostart_toggle.setGraphicsEffect(None)
+        else:
+            eff = QGraphicsOpacityEffect(self._autostart_toggle)
+            eff.setOpacity(0.35)
+            self._autostart_toggle.setGraphicsEffect(eff)
+            self._autostart_toggle.setChecked(False)
+
+    def retheme(self) -> None:
+        """主题切换：重设面板底色、全部内联样式与联动灰置态。"""
+        super().retheme()
+        self._apply_styles()
+        self._on_tray_toggled(self._tray_toggle.isChecked())
+        self._apply_voice_fab_state(self._has_speaker)
+        self._apply_speaker_state(self._has_speaker)
+        self._apply_autostart_state(self._autostart_supported)
+
+    def _on_theme_selected(self, text: str) -> None:
+        """下拉选择即预览生效（宿主主窗口负责应用与重建）。"""
+        mode = _THEME_LABEL_TO_MODE.get(text, "system")
+        if mode == self._pending_mode:
+            return
+        self._pending_mode = mode
+        win = self.parent()
+        if hasattr(win, "apply_theme_mode"):
+            win.apply_theme_mode(mode)
+
+    def _on_accent_selected(self, text: str) -> None:
+        """主题色下拉选择即预览生效：触发 theme_changed 整体换肤。"""
+        key = next((k for k, label in self._accent_pairs if label == text), None)
+        if key is None or key == self._pending_accent:
+            return
+        self._pending_accent = key
+        win = self.parent()
+        if hasattr(win, "apply_accent_mode"):
+            win.apply_accent_mode(key)
+
+    def _on_scale_selected(self, index: int) -> None:
+        """用户从下拉点选预设档位（activated 信号）：更新值并回显。"""
+        combo = self._scale_combo
+        if index < 0 or index >= combo.count():
+            return
+        text = combo.itemText(index)
+        try:
+            value = float(text.strip().rstrip("%")) / 100.0
+        except ValueError:
+            return
+        self._pending_ui_scale = value
+        # blockSignals：避免 setCurrentText 再触发信号递归
+        combo.blockSignals(True)
+        combo.setCurrentText(self._scale_pct_text(value))
+        combo.blockSignals(False)
+
+    def _scale_pct_text(self, value: float) -> str:
+        """缩放值(小数) → 百分比显示文本，保留小数但去尾零（137.5→137.5%, 1.0→100%）。"""
+        return f"{value * 100:g}%"
+
+    def _on_scale_edited(self) -> None:
+        """键入完成后规范化显示：非法值回显、超范围钳制。"""
+        combo = self._scale_combo
+        raw = combo.currentText().strip().rstrip("%")
+        if not raw:
+            return
+        try:
+            value = float(raw) / 100.0
+        except ValueError:
+            # 非法输入回显当前值
+            combo.blockSignals(True)
+            combo.setCurrentText(self._scale_pct_text(self._pending_ui_scale))
+            combo.blockSignals(False)
+            return
+        # 钳制到允许范围（设置页 50%-200%；超出按边界）
+        low, high = settings_store._UI_SCALE_MIN, settings_store._UI_SCALE_MAX
+        value = min(max(value, low), high)
+        # 值未变（如回显规范化）直接返回，避免 setCurrentText 递归
+        if abs(value - self._pending_ui_scale) < 1e-9 and \
+                combo.currentText() == self._scale_pct_text(value):
+            return
+        self._pending_ui_scale = value
+        # 回显规范化文本；blockSignals 避免 setCurrentText 再触发
+        # _on_scale_selected 用舍入值覆盖刚保存的精确值（如 137.5→138）
+        combo.blockSignals(True)
+        combo.setCurrentText(self._scale_pct_text(value))
+        combo.blockSignals(False)
+
+    def _on_tray_icon_color_changed(self, text: str) -> None:
+        """托盘图标颜色下拉即改即生效（与主题下拉同款即时预览）。"""
+        value = next(
+            (k for k, label in self._icon_color_options if label == text),
+            None)
+        if value is None:
+            return
+        win = self.parent()
+        tray = getattr(win, "_tray", None)
+        if tray is not None:
+            try:
+                tray.apply_icon_color(value)
+            except Exception:
+                pass
+
+    # ---------- 卡片顺序：撤销 / 恢复 / 恢复默认 ----------
+
+    def _order_win(self):
+        """宿主主窗口（撤销/恢复/重置作用于其排序状态）。"""
+        win = self.parent()
+        return win if win is not None and hasattr(win, "undo_device_order") else None
+
+    def _refresh_order_controls(self) -> None:
+        """按主窗口撤销栈状态刷新三个按钮的可用态与步数提示。"""
+        win = self._order_win()
+        undo_n = redo_n = 0
+        has_custom = False
+        if win is not None:
+            undo_n, redo_n = win.device_order_history()
+            has_custom = win.has_custom_device_order()
+        self._undo_btn.setEnabled(undo_n > 0)
+        self._redo_btn.setEnabled(redo_n > 0)
+        # 恢复默认仅在确实存在自定义顺序时可点
+        self._reset_btn.setEnabled(has_custom)
+        base = ("撤销上一步在主界面用右键拖动调整的设备顺序：点「撤销」回退一步，"
+                "点「恢复」重做刚撤销的一步")
+        if undo_n or redo_n:
+            base += f"（可撤销 {undo_n} 步 / 可恢复 {redo_n} 步）"
+        self._undo_desc.setText(base)
+
+    def _on_order_undo(self) -> None:
+        win = self._order_win()
+        if win is None:
+            return
+        win.undo_device_order()
+        self._refresh_order_controls()
+
+    def _on_order_redo(self) -> None:
+        win = self._order_win()
+        if win is None:
+            return
+        win.redo_device_order()
+        self._refresh_order_controls()
+
+    def _on_order_reset(self) -> None:
+        win = self._order_win()
+        if win is None:
+            return
+        win.reset_device_order()
+        self._refresh_order_controls()
+
+    def _save_and_accept(self) -> None:
+        settings_store.set_minimize_to_tray(self._tray_toggle.isChecked())
+        # 子开关仅在父开关开启时有效，关闭时强制写入 False
+        if self._tray_toggle.isChecked():
+            settings_store.set_start_minimized(self._start_min_toggle.isChecked())
+            settings_store.set_tray_always_expand(self._always_toggle.isChecked())
+        else:
+            settings_store.set_start_minimized(False)
+            settings_store.set_tray_always_expand(False)
+        # 托盘弹出位置
+        pos_idx = self._pos_combo.currentIndex()
+        if 0 <= pos_idx < len(self._pos_options):
+            settings_store.set_tray_position(self._pos_options[pos_idx][0])
+        # 托盘图标颜色
+        color_idx = self._color_combo.currentIndex()
+        if 0 <= color_idx < len(self._icon_color_options):
+            settings_store.set_tray_icon_color(
+                self._icon_color_options[color_idx][0])
+        # 默认输出音箱：下拉文案反查 did；无音箱时被灰置为「自动」存空串
+        idx = self._speaker_combo.currentIndex()
+        if 0 <= idx < len(self._speaker_options):
+            settings_store.set_default_speaker_did(self._speaker_options[idx][0])
+        # 语音浮浮球仅在带设备上下文时落盘：设备列表为空（如启动早期
+        # 打开设置）时 has_speaker 恒 False 会强制取消勾选，若照常
+        # 落盘会把用户已开启的设置静默抹成关闭
+        if self._devices:
+            settings_store.set_voice_fab_enabled(self._voice_fab_toggle.isChecked())
+        settings_store.set_hide_no_func_devices(self._hide_toggle.isChecked())
+        settings_store.set_check_update_enabled(self._update_toggle.isChecked())
+        settings_store.set_theme_mode(self._pending_mode)
+        settings_store.set_accent(self._pending_accent)
+        settings_store.set_show_device_icons(self._icons_toggle.isChecked())
+        w_idx = self._width_combo.currentIndex()
+        if 0 <= w_idx < len(self._card_width_options):
+            settings_store.set_card_width(self._card_width_options[w_idx][0])
+        # 界面缩放：记录是否变化，供保存后提示重启
+        old_scale = self._original_ui_scale
+        self._scale_changed = abs(self._pending_ui_scale - old_scale) >= 1e-6
+        settings_store.set_ui_scale(self._pending_ui_scale)
+        # 开机自启动写注册表：失败不阻断其余设置保存。
+        # 开发模式开关已置灰为关，此处顺带清掉历史残留的无效注册项
+        try:
+            settings_store.set_autostart(self._autostart_toggle.isChecked())
+        except OSError:
+            pass
+        self.accept()
+
+    def done(self, result) -> None:  # noqa: N802
+        # 取消时还原为打开前的主题/强调色（选择时已即时预览）
+        win = self.parent()
+        if result == QDialog.DialogCode.Rejected:
+            if self._pending_mode != self._original_mode:
+                self._pending_mode = self._original_mode
+                if hasattr(win, "apply_theme_mode"):
+                    win.apply_theme_mode(self._original_mode)
+            if self._pending_accent != self._original_accent:
+                self._pending_accent = self._original_accent
+                if hasattr(win, "apply_accent_mode"):
+                    win.apply_accent_mode(self._original_accent)
+        super().done(result)
+
+    def _apply_speaker_state(self, has_speaker: bool) -> None:
+        """有在线音箱时可选择；无则灰置下拉并强制「自动」。"""
+        self._speaker_combo.setEnabled(has_speaker)
+        color = SiColors.TEXT_PRIMARY if has_speaker else SiColors.TEXT_DISABLED
+        desc_color = SiColors.TEXT_SECONDARY if has_speaker else SiColors.TEXT_FAINT
+        self._speaker_label.setStyleSheet(
+            f"color: {color}; background: transparent; font-size: 10pt;")
+        self._speaker_desc.setStyleSheet(
+            f"color: {desc_color}; background: transparent; font-size: 7pt;")
+        if has_speaker:
+            self._speaker_combo.setGraphicsEffect(None)
+        else:
+            eff = QGraphicsOpacityEffect(self._speaker_combo)
+            eff.setOpacity(0.35)
+            self._speaker_combo.setGraphicsEffect(eff)
+            self._speaker_combo.setCurrentIndex(0)
+
+    def _apply_voice_fab_state(self, has_speaker: bool) -> None:
+        """有音箱时可交互，无音箱时灰置且强制关闭。"""
+        self._voice_fab_toggle.setEnabled(has_speaker)
+        label_color = SiColors.TEXT_PRIMARY if has_speaker else SiColors.TEXT_DISABLED
+        desc_color = SiColors.TEXT_SECONDARY if has_speaker else SiColors.TEXT_FAINT
+        self._fab_label.setStyleSheet(
+            f"color: {label_color}; background: transparent; font-size: 10pt;")
+        self._fab_desc.setStyleSheet(
+            f"color: {desc_color}; background: transparent; font-size: 7pt;")
+        if has_speaker:
+            self._voice_fab_toggle.setGraphicsEffect(None)
+        else:
+            eff = QGraphicsOpacityEffect(self._voice_fab_toggle)
+            eff.setOpacity(0.35)
+            self._voice_fab_toggle.setGraphicsEffect(eff)
+            self._voice_fab_toggle.setChecked(False)
+
+    def _on_tray_toggled(self, enabled: bool) -> None:
+        """父开关变化时启用/禁用子设置项。"""
+        self._start_min_toggle.setEnabled(enabled)
+        label_color = SiColors.TEXT_PRIMARY if enabled else SiColors.TEXT_DISABLED
+        desc_color = SiColors.TEXT_SECONDARY if enabled else SiColors.TEXT_FAINT
+        self._start_min_label.setStyleSheet(
+            f"color: {label_color}; background: transparent; font-size: 10pt;")
+        self._start_min_desc.setStyleSheet(
+            f"color: {desc_color}; background: transparent; font-size: 7pt;")
+        # 托盘常显调节同样依赖托盘开关
+        self._always_toggle.setEnabled(enabled)
+        if not enabled:
+            self._always_toggle.setChecked(False)
+        self._always_label.setStyleSheet(
+            f"color: {label_color}; background: transparent; font-size: 10pt;")
+        self._always_desc.setStyleSheet(
+            f"color: {desc_color}; background: transparent; font-size: 7pt;")
+        # SiSwitchRefactor 自绘不响应 setEnabled，用透明度灰化开关
+        for toggle in (self._start_min_toggle, self._always_toggle):
+            if enabled:
+                toggle.setGraphicsEffect(None)
+            else:
+                eff = QGraphicsOpacityEffect(toggle)
+                eff.setOpacity(0.35)
+                toggle.setGraphicsEffect(eff)
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        super().showEvent(event)
+        # 一律铺满可用屏幕（不随主窗口裁剪）：面板可拖到主窗口边框之外
+        # 完整显示；此前主界面可见时对话框只覆盖主窗口客户区，面板移出
+        # 主界面边框即被裁掉（设置页/米家场景均遇到）
+        from PySide6.QtGui import QGuiApplication
+        screen = QGuiApplication.primaryScreen()
+        if screen is not None:
+            self.setGeometry(screen.availableGeometry())
+        self.raise_()
+        self._fade_in()
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        # 遮罩层铺满整个窗口
+        self._place_overlay()
+        # 面板居中放置
+        pw, ph = self._panel.width(), self._panel.height()
+        x = (self.width() - pw) // 2
+        y = (self.height() - ph) // 2
+        self._panel.move(x, y)
+
+    # ---------- 拖拽 ----------
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802
+        self._header_drag_pos = None
+        super().mousePressEvent(event)
+
+    def eventFilter(self, obj, event) -> bool:  # noqa: N802
+        if obj is self._title_bar and event.type() in (
+            QEvent.Type.MouseButtonPress, QEvent.Type.MouseMove, QEvent.Type.MouseButtonRelease
+        ):
+            if event.type() == QEvent.Type.MouseButtonPress:
+                if event.button() == Qt.MouseButton.LeftButton:
+                    # 拖拽移动面板（非整个对话框），对话框铺满屏幕不动
+                    self._header_drag_pos = event.globalPosition().toPoint() - self._panel.pos()
+                return True
+            if event.type() == QEvent.Type.MouseMove:
+                if self._header_drag_pos is not None and event.buttons() & Qt.MouseButton.LeftButton:
+                    self._panel.move(event.globalPosition().toPoint() - self._header_drag_pos)
+                return True
+            if event.type() == QEvent.Type.MouseButtonRelease:
+                self._header_drag_pos = None
+                return True
+        return super().eventFilter(obj, event)
