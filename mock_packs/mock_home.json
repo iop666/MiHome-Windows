@@ -1,0 +1,6964 @@
+{
+ "home": {
+  "name": "虚拟测试家庭"
+ },
+ "models": {
+  "yeelink.light.ceiling1": {
+   "name": "吸顶灯",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "brightness",
+     "desc": "亮度",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      1,
+      100,
+      1
+     ]
+    },
+    {
+     "name": "color-temperature",
+     "desc": "色温",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      2700,
+      6500,
+      1
+     ]
+    }
+   ]
+  },
+  "yeelink.light.ceiling4": {
+   "name": "吸顶灯",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "brightness",
+     "desc": "亮度",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      1,
+      100,
+      1
+     ]
+    },
+    {
+     "name": "color-temperature",
+     "desc": "色温",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      2700,
+      6500,
+      1
+     ]
+    }
+   ]
+  },
+  "xiaomi.light.ceiling.01": {
+   "name": "吸顶灯",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "brightness",
+     "desc": "亮度",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      1,
+      100,
+      1
+     ]
+    },
+    {
+     "name": "color-temperature",
+     "desc": "色温",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      2700,
+      6500,
+      1
+     ]
+    }
+   ]
+  },
+  "leshi.light.ceiling04": {
+   "name": "吸顶灯",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "brightness",
+     "desc": "亮度",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      1,
+      100,
+      1
+     ]
+    },
+    {
+     "name": "color-temperature",
+     "desc": "色温",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      2700,
+      6500,
+      1
+     ]
+    }
+   ]
+  },
+  "yeelink.light.downlight3": {
+   "name": "筒灯",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "brightness",
+     "desc": "亮度",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      1,
+      100,
+      1
+     ]
+    }
+   ]
+  },
+  "lumi.light.aqcn02": {
+   "name": "筒灯",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "brightness",
+     "desc": "亮度",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      1,
+      100,
+      1
+     ]
+    }
+   ]
+  },
+  "yeelink.light.strip1": {
+   "name": "灯带",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "brightness",
+     "desc": "亮度",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      1,
+      100,
+      1
+     ]
+    },
+    {
+     "name": "color-temperature",
+     "desc": "色温",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      2700,
+      6500,
+      1
+     ]
+    }
+   ]
+  },
+  "yeelink.light.strip6": {
+   "name": "灯带",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "brightness",
+     "desc": "亮度",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      1,
+      100,
+      1
+     ]
+    },
+    {
+     "name": "color-temperature",
+     "desc": "色温",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      2700,
+      6500,
+      1
+     ]
+    }
+   ]
+  },
+  "yeelink.light.color1": {
+   "name": "灯泡",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "brightness",
+     "desc": "亮度",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      1,
+      100,
+      1
+     ]
+    }
+   ]
+  },
+  "yeelink.light.mono1": {
+   "name": "灯泡",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "brightness",
+     "desc": "亮度",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      1,
+      100,
+      1
+     ]
+    }
+   ]
+  },
+  "leshi.light.ceiling01": {
+   "name": "灯泡",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "brightness",
+     "desc": "亮度",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      1,
+      100,
+      1
+     ]
+    }
+   ]
+  },
+  "yeelink.light.lamp2": {
+   "name": "床头灯",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "brightness",
+     "desc": "亮度",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      1,
+      100,
+      1
+     ]
+    }
+   ]
+  },
+  "yeelink.light.bslamp2": {
+   "name": "床头灯",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "brightness",
+     "desc": "亮度",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      1,
+      100,
+      1
+     ]
+    }
+   ]
+  },
+  "leshi.light.bedside01": {
+   "name": "床头灯",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "brightness",
+     "desc": "亮度",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      1,
+      100,
+      1
+     ]
+    }
+   ]
+  },
+  "xiaomi.light.lamp31": {
+   "name": "台灯",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "brightness",
+     "desc": "亮度",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      1,
+      100,
+      1
+     ]
+    },
+    {
+     "name": "color-temperature",
+     "desc": "色温",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      2700,
+      6500,
+      1
+     ]
+    }
+   ]
+  },
+  "yeelink.light.lamp4": {
+   "name": "台灯",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "brightness",
+     "desc": "亮度",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      1,
+      100,
+      1
+     ]
+    },
+    {
+     "name": "color-temperature",
+     "desc": "色温",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      2700,
+      6500,
+      1
+     ]
+    }
+   ]
+  },
+  "philips.light.sread1": {
+   "name": "台灯",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "brightness",
+     "desc": "亮度",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      1,
+      100,
+      1
+     ]
+    },
+    {
+     "name": "color-temperature",
+     "desc": "色温",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      2700,
+      6500,
+      1
+     ]
+    }
+   ]
+  },
+  "mijia.light.lamp01": {
+   "name": "台灯",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "brightness",
+     "desc": "亮度",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      1,
+      100,
+      1
+     ]
+    },
+    {
+     "name": "color-temperature",
+     "desc": "色温",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      2700,
+      6500,
+      1
+     ]
+    }
+   ]
+  },
+  "yeelink.light.floor1": {
+   "name": "落地灯",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "brightness",
+     "desc": "亮度",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      1,
+      100,
+      1
+     ]
+    },
+    {
+     "name": "color-temperature",
+     "desc": "色温",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      2700,
+      6500,
+      1
+     ]
+    }
+   ]
+  },
+  "leshi.light.floor01": {
+   "name": "落地灯",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "brightness",
+     "desc": "亮度",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      1,
+      100,
+      1
+     ]
+    },
+    {
+     "name": "color-temperature",
+     "desc": "色温",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      2700,
+      6500,
+      1
+     ]
+    }
+   ]
+  },
+  "xiaomi.tv.mitv3": {
+   "name": "电视",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "volume",
+     "desc": "音量",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      0,
+      100,
+      1
+     ]
+    }
+   ]
+  },
+  "xiaomi.tv.mitv5": {
+   "name": "电视",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "volume",
+     "desc": "音量",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      0,
+      100,
+      1
+     ]
+    }
+   ]
+  },
+  "xiaomi.wifispeaker.x08c": {
+   "name": "小爱音箱",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "volume",
+     "desc": "音量",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      0,
+      100,
+      1
+     ]
+    },
+    {
+     "name": "mute",
+     "desc": "静音",
+     "type": "bool",
+     "rw": "rw"
+    }
+   ]
+  },
+  "xiaomi.wifispeaker.x10": {
+   "name": "小爱音箱",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "volume",
+     "desc": "音量",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      0,
+      100,
+      1
+     ]
+    },
+    {
+     "name": "mute",
+     "desc": "静音",
+     "type": "bool",
+     "rw": "rw"
+    }
+   ]
+  },
+  "xiaomi.wifispeaker.lx06": {
+   "name": "小爱音箱",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "volume",
+     "desc": "音量",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      0,
+      100,
+      1
+     ]
+    },
+    {
+     "name": "mute",
+     "desc": "静音",
+     "type": "bool",
+     "rw": "rw"
+    }
+   ]
+  },
+  "xiaomi.wifispeaker.lx04": {
+   "name": "小爱音箱",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "volume",
+     "desc": "音量",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      0,
+      100,
+      1
+     ]
+    },
+    {
+     "name": "mute",
+     "desc": "静音",
+     "type": "bool",
+     "rw": "rw"
+    }
+   ]
+  },
+  "xiaomi.wifispeaker.mini1": {
+   "name": "小爱音箱",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "volume",
+     "desc": "音量",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      0,
+      100,
+      1
+     ]
+    },
+    {
+     "name": "mute",
+     "desc": "静音",
+     "type": "bool",
+     "rw": "rw"
+    }
+   ]
+  },
+  "xiaomi.aircondition.c32": {
+   "name": "空调",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "mode",
+     "desc": "模式",
+     "type": "int",
+     "rw": "rw",
+     "value_list": [
+      {
+       "value": 1,
+       "description": "制冷"
+      },
+      {
+       "value": 2,
+       "description": "制热"
+      },
+      {
+       "value": 3,
+       "description": "自动"
+      },
+      {
+       "value": 0,
+       "description": "除湿"
+      },
+      {
+       "value": 4,
+       "description": "送风"
+      }
+     ]
+    },
+    {
+     "name": "target-temperature",
+     "desc": "目标温度",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      16,
+      30,
+      1
+     ]
+    },
+    {
+     "name": "fan-level",
+     "desc": "风速",
+     "type": "int",
+     "rw": "rw",
+     "value_list": [
+      {
+       "value": 0,
+       "description": "自动"
+      },
+      {
+       "value": 1,
+       "description": "低"
+      },
+      {
+       "value": 2,
+       "description": "中"
+      },
+      {
+       "value": 3,
+       "description": "高"
+      }
+     ]
+    }
+   ]
+  },
+  "xiaomi.aircondition.m16": {
+   "name": "空调",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "mode",
+     "desc": "模式",
+     "type": "int",
+     "rw": "rw",
+     "value_list": [
+      {
+       "value": 1,
+       "description": "制冷"
+      },
+      {
+       "value": 2,
+       "description": "制热"
+      },
+      {
+       "value": 3,
+       "description": "自动"
+      },
+      {
+       "value": 0,
+       "description": "除湿"
+      },
+      {
+       "value": 4,
+       "description": "送风"
+      }
+     ]
+    },
+    {
+     "name": "target-temperature",
+     "desc": "目标温度",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      16,
+      30,
+      1
+     ]
+    },
+    {
+     "name": "fan-level",
+     "desc": "风速",
+     "type": "int",
+     "rw": "rw",
+     "value_list": [
+      {
+       "value": 0,
+       "description": "自动"
+      },
+      {
+       "value": 1,
+       "description": "低"
+      },
+      {
+       "value": 2,
+       "description": "中"
+      },
+      {
+       "value": 3,
+       "description": "高"
+      }
+     ]
+    }
+   ]
+  },
+  "xiaomi.aircondition.c20": {
+   "name": "空调",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "mode",
+     "desc": "模式",
+     "type": "int",
+     "rw": "rw",
+     "value_list": [
+      {
+       "value": 1,
+       "description": "制冷"
+      },
+      {
+       "value": 2,
+       "description": "制热"
+      },
+      {
+       "value": 3,
+       "description": "自动"
+      },
+      {
+       "value": 0,
+       "description": "除湿"
+      },
+      {
+       "value": 4,
+       "description": "送风"
+      }
+     ]
+    },
+    {
+     "name": "target-temperature",
+     "desc": "目标温度",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      16,
+      30,
+      1
+     ]
+    },
+    {
+     "name": "fan-level",
+     "desc": "风速",
+     "type": "int",
+     "rw": "rw",
+     "value_list": [
+      {
+       "value": 0,
+       "description": "自动"
+      },
+      {
+       "value": 1,
+       "description": "低"
+      },
+      {
+       "value": 2,
+       "description": "中"
+      },
+      {
+       "value": 3,
+       "description": "高"
+      }
+     ]
+    }
+   ]
+  },
+  "mijia.aircondition.v1": {
+   "name": "空调",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "mode",
+     "desc": "模式",
+     "type": "int",
+     "rw": "rw",
+     "value_list": [
+      {
+       "value": 1,
+       "description": "制冷"
+      },
+      {
+       "value": 2,
+       "description": "制热"
+      },
+      {
+       "value": 3,
+       "description": "自动"
+      },
+      {
+       "value": 0,
+       "description": "除湿"
+      },
+      {
+       "value": 4,
+       "description": "送风"
+      }
+     ]
+    },
+    {
+     "name": "target-temperature",
+     "desc": "目标温度",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      16,
+      30,
+      1
+     ]
+    },
+    {
+     "name": "fan-level",
+     "desc": "风速",
+     "type": "int",
+     "rw": "rw",
+     "value_list": [
+      {
+       "value": 0,
+       "description": "自动"
+      },
+      {
+       "value": 1,
+       "description": "低"
+      },
+      {
+       "value": 2,
+       "description": "中"
+      },
+      {
+       "value": 3,
+       "description": "高"
+      }
+     ]
+    }
+   ]
+  },
+  "midjd.fridge.bx27l": {
+   "name": "冰箱",
+   "props": []
+  },
+  "midjd.fridge.bx24l": {
+   "name": "冰箱",
+   "props": []
+  },
+  "midjd.washer.v1": {
+   "name": "洗衣机",
+   "props": []
+  },
+  "midjd.washer.pro": {
+   "name": "洗衣机",
+   "props": []
+  },
+  "roborock.vacuum.a10": {
+   "name": "扫地机器人",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "mode",
+     "desc": "清扫模式",
+     "type": "int",
+     "rw": "rw",
+     "value_list": [
+      {
+       "value": 1,
+       "description": "安静"
+      },
+      {
+       "value": 2,
+       "description": "标准"
+      },
+      {
+       "value": 3,
+       "description": "强力"
+      }
+     ]
+    },
+    {
+     "name": "status",
+     "desc": "状态",
+     "type": "int",
+     "rw": "r",
+     "value_list": [
+      {
+       "value": 1,
+       "description": "待机"
+      },
+      {
+       "value": 2,
+       "description": "清扫中"
+      },
+      {
+       "value": 3,
+       "description": "回充"
+      }
+     ]
+    },
+    {
+     "name": "battery",
+     "desc": "电量",
+     "type": "int",
+     "rw": "r",
+     "range": [
+      0,
+      100,
+      1
+     ]
+    }
+   ]
+  },
+  "roborock.vacuum.e2": {
+   "name": "扫地机器人",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "mode",
+     "desc": "清扫模式",
+     "type": "int",
+     "rw": "rw",
+     "value_list": [
+      {
+       "value": 1,
+       "description": "安静"
+      },
+      {
+       "value": 2,
+       "description": "标准"
+      },
+      {
+       "value": 3,
+       "description": "强力"
+      }
+     ]
+    },
+    {
+     "name": "status",
+     "desc": "状态",
+     "type": "int",
+     "rw": "r",
+     "value_list": [
+      {
+       "value": 1,
+       "description": "待机"
+      },
+      {
+       "value": 2,
+       "description": "清扫中"
+      },
+      {
+       "value": 3,
+       "description": "回充"
+      }
+     ]
+    },
+    {
+     "name": "battery",
+     "desc": "电量",
+     "type": "int",
+     "rw": "r",
+     "range": [
+      0,
+      100,
+      1
+     ]
+    }
+   ]
+  },
+  "rockrobo.vacuum.v1": {
+   "name": "扫地机器人",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "mode",
+     "desc": "清扫模式",
+     "type": "int",
+     "rw": "rw",
+     "value_list": [
+      {
+       "value": 1,
+       "description": "安静"
+      },
+      {
+       "value": 2,
+       "description": "标准"
+      },
+      {
+       "value": 3,
+       "description": "强力"
+      }
+     ]
+    },
+    {
+     "name": "status",
+     "desc": "状态",
+     "type": "int",
+     "rw": "r",
+     "value_list": [
+      {
+       "value": 1,
+       "description": "待机"
+      },
+      {
+       "value": 2,
+       "description": "清扫中"
+      },
+      {
+       "value": 3,
+       "description": "回充"
+      }
+     ]
+    },
+    {
+     "name": "battery",
+     "desc": "电量",
+     "type": "int",
+     "rw": "r",
+     "range": [
+      0,
+      100,
+      1
+     ]
+    }
+   ]
+  },
+  "zhimi.airpurifier.m2": {
+   "name": "空气净化器",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "mode",
+     "desc": "模式",
+     "type": "int",
+     "rw": "rw",
+     "value_list": [
+      {
+       "value": 0,
+       "description": "自动"
+      },
+      {
+       "value": 1,
+       "description": "睡眠"
+      },
+      {
+       "value": 2,
+       "description": "手动"
+      }
+     ]
+    },
+    {
+     "name": "fan-level",
+     "desc": "档位",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      1,
+      3,
+      1
+     ]
+    },
+    {
+     "name": "aqi",
+     "desc": "PM2.5",
+     "type": "int",
+     "rw": "r",
+     "range": [
+      0,
+      500,
+      1
+     ]
+    }
+   ]
+  },
+  "zhimi.airpurifier.mb3": {
+   "name": "空气净化器",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "mode",
+     "desc": "模式",
+     "type": "int",
+     "rw": "rw",
+     "value_list": [
+      {
+       "value": 0,
+       "description": "自动"
+      },
+      {
+       "value": 1,
+       "description": "睡眠"
+      },
+      {
+       "value": 2,
+       "description": "手动"
+      }
+     ]
+    },
+    {
+     "name": "fan-level",
+     "desc": "档位",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      1,
+      3,
+      1
+     ]
+    },
+    {
+     "name": "aqi",
+     "desc": "PM2.5",
+     "type": "int",
+     "rw": "r",
+     "range": [
+      0,
+      500,
+      1
+     ]
+    }
+   ]
+  },
+  "zhimi.airpurifier.mb1": {
+   "name": "空气净化器",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "mode",
+     "desc": "模式",
+     "type": "int",
+     "rw": "rw",
+     "value_list": [
+      {
+       "value": 0,
+       "description": "自动"
+      },
+      {
+       "value": 1,
+       "description": "睡眠"
+      },
+      {
+       "value": 2,
+       "description": "手动"
+      }
+     ]
+    },
+    {
+     "name": "fan-level",
+     "desc": "档位",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      1,
+      3,
+      1
+     ]
+    },
+    {
+     "name": "aqi",
+     "desc": "PM2.5",
+     "type": "int",
+     "rw": "r",
+     "range": [
+      0,
+      500,
+      1
+     ]
+    }
+   ]
+  },
+  "deerma.airpurifier.t9": {
+   "name": "空气净化器",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "mode",
+     "desc": "模式",
+     "type": "int",
+     "rw": "rw",
+     "value_list": [
+      {
+       "value": 0,
+       "description": "自动"
+      },
+      {
+       "value": 1,
+       "description": "睡眠"
+      },
+      {
+       "value": 2,
+       "description": "手动"
+      }
+     ]
+    },
+    {
+     "name": "fan-level",
+     "desc": "档位",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      1,
+      3,
+      1
+     ]
+    },
+    {
+     "name": "aqi",
+     "desc": "PM2.5",
+     "type": "int",
+     "rw": "r",
+     "range": [
+      0,
+      500,
+      1
+     ]
+    }
+   ]
+  },
+  "zhimi.humidifier.cb1": {
+   "name": "加湿器",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "target-humidity",
+     "desc": "目标湿度",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      30,
+      80,
+      1
+     ]
+    },
+    {
+     "name": "mode",
+     "desc": "模式",
+     "type": "int",
+     "rw": "rw",
+     "value_list": [
+      {
+       "value": 0,
+       "description": "自动"
+      },
+      {
+       "value": 1,
+       "description": "睡眠"
+      },
+      {
+       "value": 2,
+       "description": "恒定"
+      }
+     ]
+    },
+    {
+     "name": "humidity",
+     "desc": "当前湿度",
+     "type": "int",
+     "rw": "r",
+     "range": [
+      0,
+      100,
+      1
+     ]
+    }
+   ]
+  },
+  "deerma.humidifier.jsq1": {
+   "name": "加湿器",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "target-humidity",
+     "desc": "目标湿度",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      30,
+      80,
+      1
+     ]
+    },
+    {
+     "name": "mode",
+     "desc": "模式",
+     "type": "int",
+     "rw": "rw",
+     "value_list": [
+      {
+       "value": 0,
+       "description": "自动"
+      },
+      {
+       "value": 1,
+       "description": "睡眠"
+      },
+      {
+       "value": 2,
+       "description": "恒定"
+      }
+     ]
+    },
+    {
+     "name": "humidity",
+     "desc": "当前湿度",
+     "type": "int",
+     "rw": "r",
+     "range": [
+      0,
+      100,
+      1
+     ]
+    }
+   ]
+  },
+  "smartmi.humidifier.1": {
+   "name": "加湿器",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "target-humidity",
+     "desc": "目标湿度",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      30,
+      80,
+      1
+     ]
+    },
+    {
+     "name": "mode",
+     "desc": "模式",
+     "type": "int",
+     "rw": "rw",
+     "value_list": [
+      {
+       "value": 0,
+       "description": "自动"
+      },
+      {
+       "value": 1,
+       "description": "睡眠"
+      },
+      {
+       "value": 2,
+       "description": "恒定"
+      }
+     ]
+    },
+    {
+     "name": "humidity",
+     "desc": "当前湿度",
+     "type": "int",
+     "rw": "r",
+     "range": [
+      0,
+      100,
+      1
+     ]
+    }
+   ]
+  },
+  "zhimi.humidifier.de1": {
+   "name": "除湿机",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "target-humidity",
+     "desc": "目标湿度",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      30,
+      70,
+      1
+     ]
+    }
+   ]
+  },
+  "zhimi.heater.za1": {
+   "name": "电暖器",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "target-temperature",
+     "desc": "目标温度",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      16,
+      30,
+      1
+     ]
+    },
+    {
+     "name": "mode",
+     "desc": "模式",
+     "type": "int",
+     "rw": "rw",
+     "value_list": [
+      {
+       "value": 0,
+       "description": "自动"
+      },
+      {
+       "value": 1,
+       "description": "低功率"
+      },
+      {
+       "value": 2,
+       "description": "高功率"
+      }
+     ]
+    }
+   ]
+  },
+  "smartmi.heater.1": {
+   "name": "电暖器",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "target-temperature",
+     "desc": "目标温度",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      16,
+      30,
+      1
+     ]
+    },
+    {
+     "name": "mode",
+     "desc": "模式",
+     "type": "int",
+     "rw": "rw",
+     "value_list": [
+      {
+       "value": 0,
+       "description": "自动"
+      },
+      {
+       "value": 1,
+       "description": "低功率"
+      },
+      {
+       "value": 2,
+       "description": "高功率"
+      }
+     ]
+    }
+   ]
+  },
+  "zhimi.fan.v2": {
+   "name": "电风扇",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "fan-level",
+     "desc": "档位",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      1,
+      4,
+      1
+     ]
+    },
+    {
+     "name": "swing",
+     "desc": "摇头",
+     "type": "bool",
+     "rw": "rw"
+    }
+   ]
+  },
+  "zhimi.fan.v3": {
+   "name": "电风扇",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "fan-level",
+     "desc": "档位",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      1,
+      4,
+      1
+     ]
+    },
+    {
+     "name": "swing",
+     "desc": "摇头",
+     "type": "bool",
+     "rw": "rw"
+    }
+   ]
+  },
+  "dmaker.fan.p5": {
+   "name": "电风扇",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "fan-level",
+     "desc": "档位",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      1,
+      4,
+      1
+     ]
+    },
+    {
+     "name": "swing",
+     "desc": "摇头",
+     "type": "bool",
+     "rw": "rw"
+    }
+   ]
+  },
+  "lumi.gateway.v3": {
+   "name": "智能网关",
+   "props": [
+    {
+     "name": "light",
+     "desc": "夜灯亮度",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      1,
+      100,
+      1
+     ]
+    },
+    {
+     "name": "alarm",
+     "desc": "报警开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "status",
+     "desc": "状态",
+     "type": "int",
+     "rw": "r",
+     "value_list": [
+      {
+       "value": 1,
+       "description": "在线"
+      },
+      {
+       "value": 2,
+       "description": "离线"
+      }
+     ]
+    }
+   ]
+  },
+  "lumi.gateway.aqcn02": {
+   "name": "智能网关",
+   "props": [
+    {
+     "name": "light",
+     "desc": "夜灯亮度",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      1,
+      100,
+      1
+     ]
+    },
+    {
+     "name": "alarm",
+     "desc": "报警开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "status",
+     "desc": "状态",
+     "type": "int",
+     "rw": "r",
+     "value_list": [
+      {
+       "value": 1,
+       "description": "在线"
+      },
+      {
+       "value": 2,
+       "description": "离线"
+      }
+     ]
+    }
+   ]
+  },
+  "xiaomi.router.ax6000": {
+   "name": "路由器",
+   "props": []
+  },
+  "xiaomi.router.ax3000": {
+   "name": "路由器",
+   "props": []
+  },
+  "lumi.ctrl_ln1.aq1": {
+   "name": "智能开关",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "mode",
+     "desc": "模式",
+     "type": "int",
+     "rw": "rw",
+     "value_list": [
+      {
+       "value": 0,
+       "description": "手动"
+      },
+      {
+       "value": 1,
+       "description": "联动"
+      }
+     ]
+    }
+   ]
+  },
+  "lumi.ctrl_ln2.aq1": {
+   "name": "智能开关",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "mode",
+     "desc": "模式",
+     "type": "int",
+     "rw": "rw",
+     "value_list": [
+      {
+       "value": 0,
+       "description": "手动"
+      },
+      {
+       "value": 1,
+       "description": "联动"
+      }
+     ]
+    }
+   ]
+  },
+  "lumi.ctrl_neutral1": {
+   "name": "智能开关",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "mode",
+     "desc": "模式",
+     "type": "int",
+     "rw": "rw",
+     "value_list": [
+      {
+       "value": 0,
+       "description": "手动"
+      },
+      {
+       "value": 1,
+       "description": "联动"
+      }
+     ]
+    }
+   ]
+  },
+  "lumi.ctrl_neutral2": {
+   "name": "智能开关",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "mode",
+     "desc": "模式",
+     "type": "int",
+     "rw": "rw",
+     "value_list": [
+      {
+       "value": 0,
+       "description": "手动"
+      },
+      {
+       "value": 1,
+       "description": "联动"
+      }
+     ]
+    }
+   ]
+  },
+  "lumi.curtain.hmcn1": {
+   "name": "窗帘电机",
+   "props": [
+    {
+     "name": "current-position",
+     "desc": "当前位置",
+     "type": "int",
+     "rw": "r",
+     "range": [
+      0,
+      100,
+      1
+     ]
+    },
+    {
+     "name": "target-position",
+     "desc": "目标位置",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      0,
+      100,
+      1
+     ]
+    },
+    {
+     "name": "status",
+     "desc": "状态",
+     "type": "int",
+     "rw": "r",
+     "value_list": [
+      {
+       "value": 0,
+       "description": "停止"
+      },
+      {
+       "value": 1,
+       "description": "运行中"
+      }
+     ]
+    }
+   ]
+  },
+  "lumi.curtain.aq2": {
+   "name": "窗帘电机",
+   "props": [
+    {
+     "name": "current-position",
+     "desc": "当前位置",
+     "type": "int",
+     "rw": "r",
+     "range": [
+      0,
+      100,
+      1
+     ]
+    },
+    {
+     "name": "target-position",
+     "desc": "目标位置",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      0,
+      100,
+      1
+     ]
+    },
+    {
+     "name": "status",
+     "desc": "状态",
+     "type": "int",
+     "rw": "r",
+     "value_list": [
+      {
+       "value": 0,
+       "description": "停止"
+      },
+      {
+       "value": 1,
+       "description": "运行中"
+      }
+     ]
+    }
+   ]
+  },
+  "dmaker.dryer.s1": {
+   "name": "晾衣架",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "mode",
+     "desc": "模式",
+     "type": "int",
+     "rw": "rw",
+     "value_list": [
+      {
+       "value": 0,
+       "description": "上升"
+      },
+      {
+       "value": 1,
+       "description": "下降"
+      },
+      {
+       "value": 2,
+       "description": "停止"
+      }
+     ]
+    }
+   ]
+  },
+  "chuangmi.camera.069a01": {
+   "name": "摄像机",
+   "props": []
+  },
+  "chuangmi.camera.ipc009": {
+   "name": "摄像机",
+   "props": []
+  },
+  "chuangmi.camera.018b01": {
+   "name": "摄像机",
+   "props": []
+  },
+  "chuangmi.doorbell.v2": {
+   "name": "智能门铃",
+   "props": []
+  },
+  "chuangmi.doorbell.m20": {
+   "name": "智能门铃",
+   "props": []
+  },
+  "loock.lock.v5": {
+   "name": "智能门锁",
+   "props": []
+  },
+  "lumi.lock.aq1": {
+   "name": "智能门锁",
+   "props": []
+  },
+  "mijia.lock.m20": {
+   "name": "智能门锁",
+   "props": []
+  },
+  "miaomiaoce.sensor_ht.t2": {
+   "name": "温湿度计",
+   "props": [
+    {
+     "name": "temperature",
+     "desc": "温度",
+     "type": "float",
+     "rw": "r"
+    },
+    {
+     "name": "relative-humidity",
+     "desc": "湿度",
+     "type": "float",
+     "rw": "r"
+    }
+   ]
+  },
+  "miaomiaoce.sensor_ht.t1": {
+   "name": "温湿度计",
+   "props": [
+    {
+     "name": "temperature",
+     "desc": "温度",
+     "type": "float",
+     "rw": "r"
+    },
+    {
+     "name": "relative-humidity",
+     "desc": "湿度",
+     "type": "float",
+     "rw": "r"
+    }
+   ]
+  },
+  "lumi.sensor_ht.v3": {
+   "name": "温湿度计",
+   "props": [
+    {
+     "name": "temperature",
+     "desc": "温度",
+     "type": "float",
+     "rw": "r"
+    },
+    {
+     "name": "relative-humidity",
+     "desc": "湿度",
+     "type": "float",
+     "rw": "r"
+    }
+   ]
+  },
+  "lumi.sensor_motion.v2": {
+   "name": "人体传感器",
+   "props": [
+    {
+     "name": "motion",
+     "desc": "有人移动",
+     "type": "bool",
+     "rw": "r"
+    },
+    {
+     "name": "illuminance",
+     "desc": "光照度",
+     "type": "int",
+     "rw": "r",
+     "range": [
+      0,
+      1200,
+      1
+     ]
+    }
+   ]
+  },
+  "lumi.sensor_motion.aq2": {
+   "name": "人体传感器",
+   "props": [
+    {
+     "name": "motion",
+     "desc": "有人移动",
+     "type": "bool",
+     "rw": "r"
+    },
+    {
+     "name": "illuminance",
+     "desc": "光照度",
+     "type": "int",
+     "rw": "r",
+     "range": [
+      0,
+      1200,
+      1
+     ]
+    }
+   ]
+  },
+  "lumi.motion.ac01": {
+   "name": "人体传感器",
+   "props": [
+    {
+     "name": "motion",
+     "desc": "有人移动",
+     "type": "bool",
+     "rw": "r"
+    },
+    {
+     "name": "illuminance",
+     "desc": "光照度",
+     "type": "int",
+     "rw": "r",
+     "range": [
+      0,
+      1200,
+      1
+     ]
+    }
+   ]
+  },
+  "lumi.sensor_magnet.v2": {
+   "name": "门窗传感器",
+   "props": [
+    {
+     "name": "open",
+     "desc": "门已打开",
+     "type": "bool",
+     "rw": "r"
+    }
+   ]
+  },
+  "lumi.sensor_magnet.aq2": {
+   "name": "门窗传感器",
+   "props": [
+    {
+     "name": "open",
+     "desc": "门已打开",
+     "type": "bool",
+     "rw": "r"
+    }
+   ]
+  },
+  "lumi.sensor_smoke.v2": {
+   "name": "烟雾传感器",
+   "props": [
+    {
+     "name": "alarm",
+     "desc": "烟雾报警",
+     "type": "bool",
+     "rw": "r"
+    }
+   ]
+  },
+  "lumi.sensor_smoke.ac01": {
+   "name": "烟雾传感器",
+   "props": [
+    {
+     "name": "alarm",
+     "desc": "烟雾报警",
+     "type": "bool",
+     "rw": "r"
+    }
+   ]
+  },
+  "lumi.sensor_natgas.v2": {
+   "name": "燃气传感器",
+   "props": [
+    {
+     "name": "alarm",
+     "desc": "燃气报警",
+     "type": "bool",
+     "rw": "r"
+    }
+   ]
+  },
+  "lumi.sensor_natgas.ac01": {
+   "name": "燃气传感器",
+   "props": [
+    {
+     "name": "alarm",
+     "desc": "燃气报警",
+     "type": "bool",
+     "rw": "r"
+    }
+   ]
+  },
+  "lumi.sensor_wleak.aq1": {
+   "name": "水浸传感器",
+   "props": [
+    {
+     "name": "leak",
+     "desc": "浸水",
+     "type": "bool",
+     "rw": "r"
+    }
+   ]
+  },
+  "lumi.sensor_light.aqcn02": {
+   "name": "光照传感器",
+   "props": [
+    {
+     "name": "illuminance",
+     "desc": "光照度",
+     "type": "int",
+     "rw": "r",
+     "range": [
+      0,
+      120000,
+      1
+     ]
+    }
+   ]
+  },
+  "miaomiaoce.temperature.h1": {
+   "name": "体温计",
+   "props": [
+    {
+     "name": "temperature",
+     "desc": "体温",
+     "type": "float",
+     "rw": "r"
+    }
+   ]
+  },
+  "dmaker.bathroom.1": {
+   "name": "智能浴霸",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "mode",
+     "desc": "模式",
+     "type": "int",
+     "rw": "rw",
+     "value_list": [
+      {
+       "value": 1,
+       "description": "取暖"
+      },
+      {
+       "value": 2,
+       "description": "吹风"
+      },
+      {
+       "value": 3,
+       "description": "换气"
+      },
+      {
+       "value": 4,
+       "description": "干燥"
+      },
+      {
+       "value": 5,
+       "description": "照明"
+      }
+     ]
+    }
+   ]
+  },
+  "yeelink.bhf_light.1": {
+   "name": "智能浴霸",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "mode",
+     "desc": "模式",
+     "type": "int",
+     "rw": "rw",
+     "value_list": [
+      {
+       "value": 1,
+       "description": "取暖"
+      },
+      {
+       "value": 2,
+       "description": "吹风"
+      },
+      {
+       "value": 3,
+       "description": "换气"
+      },
+      {
+       "value": 4,
+       "description": "干燥"
+      },
+      {
+       "value": 5,
+       "description": "照明"
+      }
+     ]
+    }
+   ]
+  },
+  "dmaker.bathroom.heater": {
+   "name": "排风扇",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    }
+   ]
+  },
+  "madefree.toilet.n1": {
+   "name": "智能马桶",
+   "props": []
+  },
+  "hinote.toilet.pro": {
+   "name": "智能马桶",
+   "props": []
+  },
+  "midjd.waterheater.v1": {
+   "name": "燃气热水器",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "target-temperature",
+     "desc": "目标温度",
+     "type": "int",
+     "rw": "rw",
+     "range": [
+      30,
+      65,
+      1
+     ]
+    }
+   ]
+  },
+  "chuangmi.plug.v3": {
+   "name": "智能插座",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "power",
+     "desc": "功率",
+     "type": "float",
+     "rw": "r"
+    }
+   ]
+  },
+  "chuangmi.plug.m3": {
+   "name": "智能插座",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "power",
+     "desc": "功率",
+     "type": "float",
+     "rw": "r"
+    }
+   ]
+  },
+  "qmi.plug.psv3": {
+   "name": "智能插座",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "power",
+     "desc": "功率",
+     "type": "float",
+     "rw": "r"
+    }
+   ]
+  },
+  "cuco.plug.v3": {
+   "name": "智能插座",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "power",
+     "desc": "功率",
+     "type": "float",
+     "rw": "r"
+    }
+   ]
+  },
+  "zimi.powerstrip.v2": {
+   "name": "智能排插",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "power",
+     "desc": "功率",
+     "type": "float",
+     "rw": "r"
+    }
+   ]
+  },
+  "zimi.powerstrip.4a": {
+   "name": "智能排插",
+   "props": [
+    {
+     "name": "on",
+     "desc": "开关",
+     "type": "bool",
+     "rw": "rw"
+    },
+    {
+     "name": "power",
+     "desc": "功率",
+     "type": "float",
+     "rw": "r"
+    }
+   ]
+  },
+  "chuangmi.ir.v2": {
+   "name": "万能遥控器",
+   "props": []
+  }
+ },
+ "rooms": [
+  "客厅",
+  "餐厅",
+  "阳台",
+  "卧室1",
+  "卧室2",
+  "书房",
+  "厕所1",
+  "厕所2"
+ ],
+ "devices": [
+  {
+   "did": "v00001",
+   "name": "客厅吸顶灯1",
+   "model": "yeelink.light.ceiling1",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 47,
+    "color-temperature": 3130
+   }
+  },
+  {
+   "did": "v00002",
+   "name": "客厅吸顶灯2",
+   "model": "yeelink.light.ceiling4",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 54,
+    "color-temperature": 3260
+   }
+  },
+  {
+   "did": "v00003",
+   "name": "客厅吸顶灯3",
+   "model": "xiaomi.light.ceiling.01",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 61,
+    "color-temperature": 3390
+   }
+  },
+  {
+   "did": "v00004",
+   "name": "客厅筒灯1",
+   "model": "yeelink.light.downlight3",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 68
+   }
+  },
+  {
+   "did": "v00005",
+   "name": "客厅筒灯2",
+   "model": "lumi.light.aqcn02",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 75
+   }
+  },
+  {
+   "did": "v00006",
+   "name": "客厅筒灯3",
+   "model": "yeelink.light.downlight3",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 82
+   }
+  },
+  {
+   "did": "v00007",
+   "name": "客厅筒灯4",
+   "model": "lumi.light.aqcn02",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": false,
+    "brightness": 89
+   }
+  },
+  {
+   "did": "v00008",
+   "name": "客厅筒灯5",
+   "model": "yeelink.light.downlight3",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 96
+   }
+  },
+  {
+   "did": "v00009",
+   "name": "客厅筒灯6",
+   "model": "lumi.light.aqcn02",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 43
+   }
+  },
+  {
+   "did": "v00010",
+   "name": "客厅筒灯7",
+   "model": "yeelink.light.downlight3",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 50
+   }
+  },
+  {
+   "did": "v00011",
+   "name": "客厅筒灯8",
+   "model": "lumi.light.aqcn02",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 57
+   }
+  },
+  {
+   "did": "v00012",
+   "name": "客厅筒灯9",
+   "model": "yeelink.light.downlight3",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 64
+   }
+  },
+  {
+   "did": "v00013",
+   "name": "客厅筒灯10",
+   "model": "lumi.light.aqcn02",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 71
+   }
+  },
+  {
+   "did": "v00014",
+   "name": "客厅筒灯11",
+   "model": "yeelink.light.downlight3",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": false,
+    "brightness": 78
+   }
+  },
+  {
+   "did": "v00015",
+   "name": "客厅筒灯12",
+   "model": "lumi.light.aqcn02",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 85
+   }
+  },
+  {
+   "did": "v00016",
+   "name": "客厅灯带",
+   "model": "yeelink.light.strip1",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 92,
+    "color-temperature": 3080
+   }
+  },
+  {
+   "did": "v00017",
+   "name": "客厅灯泡1",
+   "model": "yeelink.light.color1",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 99
+   }
+  },
+  {
+   "did": "v00018",
+   "name": "客厅灯泡2",
+   "model": "yeelink.light.mono1",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 46
+   }
+  },
+  {
+   "did": "v00019",
+   "name": "客厅灯泡3",
+   "model": "leshi.light.ceiling01",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 53
+   }
+  },
+  {
+   "did": "v00020",
+   "name": "客厅灯泡4",
+   "model": "yeelink.light.color1",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 60
+   }
+  },
+  {
+   "did": "v00021",
+   "name": "客厅落地灯",
+   "model": "yeelink.light.floor1",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": false,
+    "brightness": 67,
+    "color-temperature": 3730
+   }
+  },
+  {
+   "did": "v00022",
+   "name": "客厅电视",
+   "model": "xiaomi.tv.mitv3",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "volume": 37
+   }
+  },
+  {
+   "did": "v00023",
+   "name": "客厅小爱音箱1",
+   "model": "xiaomi.wifispeaker.x08c",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "volume": 38,
+    "mute": false
+   }
+  },
+  {
+   "did": "v00024",
+   "name": "客厅小爱音箱2",
+   "model": "xiaomi.wifispeaker.x10",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "volume": 39,
+    "mute": true
+   }
+  },
+  {
+   "did": "v00025",
+   "name": "客厅小爱音箱3",
+   "model": "xiaomi.wifispeaker.lx06",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "volume": 40,
+    "mute": false
+   }
+  },
+  {
+   "did": "v00026",
+   "name": "客厅空调1",
+   "model": "xiaomi.aircondition.c32",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100,
+    "target-temperature": 25,
+    "fan-level": 3
+   }
+  },
+  {
+   "did": "v00027",
+   "name": "客厅空调2",
+   "model": "xiaomi.aircondition.m16",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100,
+    "target-temperature": 26,
+    "fan-level": 1
+   }
+  },
+  {
+   "did": "v00028",
+   "name": "客厅智能网关1",
+   "model": "lumi.gateway.v3",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "light": 100,
+    "alarm": false
+   }
+  },
+  {
+   "did": "v00029",
+   "name": "客厅智能网关2",
+   "model": "lumi.gateway.aqcn02",
+   "room": "客厅",
+   "online": false,
+   "state": {
+    "light": 100,
+    "alarm": false
+   }
+  },
+  {
+   "did": "v00030",
+   "name": "客厅窗帘电机",
+   "model": "lumi.curtain.hmcn1",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "target-position": 100
+   }
+  },
+  {
+   "did": "v00031",
+   "name": "客厅空气净化器1",
+   "model": "zhimi.airpurifier.m2",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100,
+    "fan-level": 2
+   }
+  },
+  {
+   "did": "v00032",
+   "name": "客厅空气净化器2",
+   "model": "zhimi.airpurifier.mb3",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100,
+    "fan-level": 3
+   }
+  },
+  {
+   "did": "v00033",
+   "name": "客厅加湿器",
+   "model": "zhimi.humidifier.cb1",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "target-humidity": 63,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00034",
+   "name": "客厅扫地机器人",
+   "model": "roborock.vacuum.a10",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00035",
+   "name": "客厅摄像机1",
+   "model": "chuangmi.camera.069a01",
+   "room": "客厅",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00036",
+   "name": "客厅摄像机2",
+   "model": "chuangmi.camera.ipc009",
+   "room": "客厅",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00037",
+   "name": "客厅智能插座1",
+   "model": "chuangmi.plug.v3",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00038",
+   "name": "客厅智能插座2",
+   "model": "chuangmi.plug.m3",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00039",
+   "name": "客厅智能插座3",
+   "model": "qmi.plug.psv3",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00040",
+   "name": "客厅智能插座4",
+   "model": "cuco.plug.v3",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00041",
+   "name": "客厅智能插座5",
+   "model": "chuangmi.plug.v3",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00042",
+   "name": "客厅智能插座6",
+   "model": "chuangmi.plug.m3",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": false
+   }
+  },
+  {
+   "did": "v00043",
+   "name": "客厅智能插座7",
+   "model": "qmi.plug.psv3",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00044",
+   "name": "客厅智能插座8",
+   "model": "cuco.plug.v3",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00045",
+   "name": "客厅智能排插1",
+   "model": "zimi.powerstrip.v2",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00046",
+   "name": "客厅智能排插2",
+   "model": "zimi.powerstrip.4a",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00047",
+   "name": "客厅智能开关1",
+   "model": "lumi.ctrl_ln1.aq1",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00048",
+   "name": "客厅智能开关2",
+   "model": "lumi.ctrl_ln2.aq1",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00049",
+   "name": "客厅智能开关3",
+   "model": "lumi.ctrl_neutral1",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": false,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00050",
+   "name": "客厅智能开关4",
+   "model": "lumi.ctrl_neutral2",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00051",
+   "name": "客厅电风扇",
+   "model": "zhimi.fan.v2",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "fan-level": 1,
+    "swing": true
+   }
+  },
+  {
+   "did": "v00052",
+   "name": "客厅温湿度计1",
+   "model": "miaomiaoce.sensor_ht.t2",
+   "room": "客厅",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00053",
+   "name": "客厅温湿度计2",
+   "model": "miaomiaoce.sensor_ht.t1",
+   "room": "客厅",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00054",
+   "name": "客厅温湿度计3",
+   "model": "lumi.sensor_ht.v3",
+   "room": "客厅",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00055",
+   "name": "客厅人体传感器1",
+   "model": "lumi.sensor_motion.v2",
+   "room": "客厅",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00056",
+   "name": "客厅人体传感器2",
+   "model": "lumi.sensor_motion.aq2",
+   "room": "客厅",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00057",
+   "name": "客厅人体传感器3",
+   "model": "lumi.motion.ac01",
+   "room": "客厅",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00058",
+   "name": "客厅人体传感器4",
+   "model": "lumi.sensor_motion.v2",
+   "room": "客厅",
+   "online": false,
+   "state": {}
+  },
+  {
+   "did": "v00059",
+   "name": "客厅门窗传感器",
+   "model": "lumi.sensor_magnet.v2",
+   "room": "客厅",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00060",
+   "name": "客厅烟雾传感器",
+   "model": "lumi.sensor_smoke.v2",
+   "room": "客厅",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00061",
+   "name": "客厅光照传感器",
+   "model": "lumi.sensor_light.aqcn02",
+   "room": "客厅",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00062",
+   "name": "客厅路由器",
+   "model": "xiaomi.router.ax6000",
+   "room": "客厅",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00063",
+   "name": "客厅智能门铃",
+   "model": "chuangmi.doorbell.v2",
+   "room": "客厅",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00064",
+   "name": "客厅万能遥控器",
+   "model": "chuangmi.ir.v2",
+   "room": "客厅",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00065",
+   "name": "客厅筒灯65",
+   "model": "lumi.light.aqcn02",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 75
+   }
+  },
+  {
+   "did": "v00066",
+   "name": "客厅智能插座66",
+   "model": "cuco.plug.v3",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00067",
+   "name": "客厅灯泡67",
+   "model": "yeelink.light.color1",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 89
+   }
+  },
+  {
+   "did": "v00068",
+   "name": "客厅人体传感器68",
+   "model": "lumi.motion.ac01",
+   "room": "客厅",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00069",
+   "name": "客厅智能开关69",
+   "model": "lumi.ctrl_ln2.aq1",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00070",
+   "name": "客厅温湿度计70",
+   "model": "miaomiaoce.sensor_ht.t2",
+   "room": "客厅",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00071",
+   "name": "客厅筒灯71",
+   "model": "lumi.light.aqcn02",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 57
+   }
+  },
+  {
+   "did": "v00072",
+   "name": "客厅智能插座72",
+   "model": "cuco.plug.v3",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00073",
+   "name": "客厅灯泡73",
+   "model": "yeelink.light.color1",
+   "room": "客厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 71
+   }
+  },
+  {
+   "did": "v00074",
+   "name": "客厅人体传感器74",
+   "model": "lumi.motion.ac01",
+   "room": "客厅",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00075",
+   "name": "餐厅吸顶灯1",
+   "model": "yeelink.light.ceiling1",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 85,
+    "color-temperature": 4750
+   }
+  },
+  {
+   "did": "v00076",
+   "name": "餐厅吸顶灯2",
+   "model": "yeelink.light.ceiling4",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 92,
+    "color-temperature": 4880
+   }
+  },
+  {
+   "did": "v00077",
+   "name": "餐厅筒灯1",
+   "model": "yeelink.light.downlight3",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": false,
+    "brightness": 99
+   }
+  },
+  {
+   "did": "v00078",
+   "name": "餐厅筒灯2",
+   "model": "lumi.light.aqcn02",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 46
+   }
+  },
+  {
+   "did": "v00079",
+   "name": "餐厅筒灯3",
+   "model": "yeelink.light.downlight3",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 53
+   }
+  },
+  {
+   "did": "v00080",
+   "name": "餐厅筒灯4",
+   "model": "lumi.light.aqcn02",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 60
+   }
+  },
+  {
+   "did": "v00081",
+   "name": "餐厅筒灯5",
+   "model": "yeelink.light.downlight3",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 67
+   }
+  },
+  {
+   "did": "v00082",
+   "name": "餐厅筒灯6",
+   "model": "lumi.light.aqcn02",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 74
+   }
+  },
+  {
+   "did": "v00083",
+   "name": "餐厅灯泡1",
+   "model": "yeelink.light.color1",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 81
+   }
+  },
+  {
+   "did": "v00084",
+   "name": "餐厅灯泡2",
+   "model": "yeelink.light.mono1",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": false,
+    "brightness": 88
+   }
+  },
+  {
+   "did": "v00085",
+   "name": "餐厅灯泡3",
+   "model": "leshi.light.ceiling01",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 95
+   }
+  },
+  {
+   "did": "v00086",
+   "name": "餐厅空调",
+   "model": "xiaomi.aircondition.c32",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100,
+    "target-temperature": 25,
+    "fan-level": 3
+   }
+  },
+  {
+   "did": "v00087",
+   "name": "餐厅冰箱",
+   "model": "midjd.fridge.bx27l",
+   "room": "餐厅",
+   "online": false,
+   "state": {}
+  },
+  {
+   "did": "v00088",
+   "name": "餐厅智能插座1",
+   "model": "chuangmi.plug.v3",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00089",
+   "name": "餐厅智能插座2",
+   "model": "chuangmi.plug.m3",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00090",
+   "name": "餐厅智能插座3",
+   "model": "qmi.plug.psv3",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00091",
+   "name": "餐厅智能插座4",
+   "model": "cuco.plug.v3",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": false
+   }
+  },
+  {
+   "did": "v00092",
+   "name": "餐厅智能插座5",
+   "model": "chuangmi.plug.v3",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00093",
+   "name": "餐厅智能插座6",
+   "model": "chuangmi.plug.m3",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00094",
+   "name": "餐厅智能排插",
+   "model": "zimi.powerstrip.v2",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00095",
+   "name": "餐厅智能开关1",
+   "model": "lumi.ctrl_ln1.aq1",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00096",
+   "name": "餐厅智能开关2",
+   "model": "lumi.ctrl_ln2.aq1",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00097",
+   "name": "餐厅温湿度计",
+   "model": "miaomiaoce.sensor_ht.t2",
+   "room": "餐厅",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00098",
+   "name": "餐厅人体传感器",
+   "model": "lumi.sensor_motion.v2",
+   "room": "餐厅",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00099",
+   "name": "餐厅门窗传感器",
+   "model": "lumi.sensor_magnet.v2",
+   "room": "餐厅",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00100",
+   "name": "餐厅烟雾传感器",
+   "model": "lumi.sensor_smoke.v2",
+   "room": "餐厅",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00101",
+   "name": "餐厅燃气传感器",
+   "model": "lumi.sensor_natgas.v2",
+   "room": "餐厅",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00102",
+   "name": "餐厅空气净化器",
+   "model": "zhimi.airpurifier.m2",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100,
+    "fan-level": 1
+   }
+  },
+  {
+   "did": "v00103",
+   "name": "餐厅小爱音箱",
+   "model": "xiaomi.wifispeaker.x08c",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "volume": 38,
+    "mute": false
+   }
+  },
+  {
+   "did": "v00104",
+   "name": "餐厅筒灯30",
+   "model": "yeelink.light.downlight3",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 48
+   }
+  },
+  {
+   "did": "v00105",
+   "name": "餐厅智能插座31",
+   "model": "chuangmi.plug.v3",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": false
+   }
+  },
+  {
+   "did": "v00106",
+   "name": "餐厅灯泡32",
+   "model": "yeelink.light.mono1",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 62
+   }
+  },
+  {
+   "did": "v00107",
+   "name": "餐厅人体传感器33",
+   "model": "lumi.sensor_motion.v2",
+   "room": "餐厅",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00108",
+   "name": "餐厅智能开关34",
+   "model": "lumi.ctrl_neutral1",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00109",
+   "name": "餐厅温湿度计35",
+   "model": "miaomiaoce.sensor_ht.t1",
+   "room": "餐厅",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00110",
+   "name": "餐厅筒灯36",
+   "model": "yeelink.light.downlight3",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 90
+   }
+  },
+  {
+   "did": "v00111",
+   "name": "餐厅智能插座37",
+   "model": "chuangmi.plug.v3",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00112",
+   "name": "餐厅灯泡38",
+   "model": "yeelink.light.mono1",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": false,
+    "brightness": 44
+   }
+  },
+  {
+   "did": "v00113",
+   "name": "餐厅人体传感器39",
+   "model": "lumi.sensor_motion.v2",
+   "room": "餐厅",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00114",
+   "name": "餐厅智能开关40",
+   "model": "lumi.ctrl_neutral1",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00115",
+   "name": "餐厅温湿度计41",
+   "model": "miaomiaoce.sensor_ht.t1",
+   "room": "餐厅",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00116",
+   "name": "餐厅筒灯42",
+   "model": "yeelink.light.downlight3",
+   "room": "餐厅",
+   "online": false,
+   "state": {
+    "on": true,
+    "brightness": 72
+   }
+  },
+  {
+   "did": "v00117",
+   "name": "餐厅智能插座43",
+   "model": "chuangmi.plug.v3",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00118",
+   "name": "餐厅灯泡44",
+   "model": "yeelink.light.mono1",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 86
+   }
+  },
+  {
+   "did": "v00119",
+   "name": "餐厅人体传感器45",
+   "model": "lumi.sensor_motion.v2",
+   "room": "餐厅",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00120",
+   "name": "餐厅智能开关46",
+   "model": "lumi.ctrl_neutral1",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00121",
+   "name": "餐厅温湿度计47",
+   "model": "miaomiaoce.sensor_ht.t1",
+   "room": "餐厅",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00122",
+   "name": "餐厅筒灯48",
+   "model": "yeelink.light.downlight3",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 54
+   }
+  },
+  {
+   "did": "v00123",
+   "name": "餐厅智能插座49",
+   "model": "chuangmi.plug.v3",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00124",
+   "name": "餐厅灯泡50",
+   "model": "yeelink.light.mono1",
+   "room": "餐厅",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 68
+   }
+  },
+  {
+   "did": "v00125",
+   "name": "阳台吸顶灯",
+   "model": "yeelink.light.ceiling1",
+   "room": "阳台",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 75,
+    "color-temperature": 3250
+   }
+  },
+  {
+   "did": "v00126",
+   "name": "阳台筒灯1",
+   "model": "yeelink.light.downlight3",
+   "room": "阳台",
+   "online": true,
+   "state": {
+    "on": false,
+    "brightness": 82
+   }
+  },
+  {
+   "did": "v00127",
+   "name": "阳台筒灯2",
+   "model": "lumi.light.aqcn02",
+   "room": "阳台",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 89
+   }
+  },
+  {
+   "did": "v00128",
+   "name": "阳台筒灯3",
+   "model": "yeelink.light.downlight3",
+   "room": "阳台",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 96
+   }
+  },
+  {
+   "did": "v00129",
+   "name": "阳台晾衣架",
+   "model": "dmaker.dryer.s1",
+   "room": "阳台",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00130",
+   "name": "阳台洗衣机",
+   "model": "midjd.washer.v1",
+   "room": "阳台",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00131",
+   "name": "阳台摄像机",
+   "model": "chuangmi.camera.069a01",
+   "room": "阳台",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00132",
+   "name": "阳台智能插座1",
+   "model": "chuangmi.plug.v3",
+   "room": "阳台",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00133",
+   "name": "阳台智能插座2",
+   "model": "chuangmi.plug.m3",
+   "room": "阳台",
+   "online": true,
+   "state": {
+    "on": false
+   }
+  },
+  {
+   "did": "v00134",
+   "name": "阳台智能插座3",
+   "model": "qmi.plug.psv3",
+   "room": "阳台",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00135",
+   "name": "阳台智能插座4",
+   "model": "cuco.plug.v3",
+   "room": "阳台",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00136",
+   "name": "阳台智能插座5",
+   "model": "chuangmi.plug.v3",
+   "room": "阳台",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00137",
+   "name": "阳台温湿度计",
+   "model": "miaomiaoce.sensor_ht.t2",
+   "room": "阳台",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00138",
+   "name": "阳台门窗传感器",
+   "model": "lumi.sensor_magnet.v2",
+   "room": "阳台",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00139",
+   "name": "阳台人体传感器",
+   "model": "lumi.sensor_motion.v2",
+   "room": "阳台",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00140",
+   "name": "阳台水浸传感器",
+   "model": "lumi.sensor_wleak.aq1",
+   "room": "阳台",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00141",
+   "name": "阳台窗帘电机",
+   "model": "lumi.curtain.hmcn1",
+   "room": "阳台",
+   "online": true,
+   "state": {
+    "target-position": 100
+   }
+  },
+  {
+   "did": "v00142",
+   "name": "阳台扫地机器人",
+   "model": "roborock.vacuum.a10",
+   "room": "阳台",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00143",
+   "name": "阳台空气净化器",
+   "model": "zhimi.airpurifier.m2",
+   "room": "阳台",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100,
+    "fan-level": 3
+   }
+  },
+  {
+   "did": "v00144",
+   "name": "阳台筒灯20",
+   "model": "yeelink.light.downlight3",
+   "room": "阳台",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 88
+   }
+  },
+  {
+   "did": "v00145",
+   "name": "阳台智能插座21",
+   "model": "qmi.plug.psv3",
+   "room": "阳台",
+   "online": false,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00146",
+   "name": "阳台灯泡22",
+   "model": "yeelink.light.color1",
+   "room": "阳台",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 42
+   }
+  },
+  {
+   "did": "v00147",
+   "name": "阳台人体传感器23",
+   "model": "lumi.motion.ac01",
+   "room": "阳台",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00148",
+   "name": "阳台智能开关24",
+   "model": "lumi.ctrl_ln1.aq1",
+   "room": "阳台",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00149",
+   "name": "阳台温湿度计25",
+   "model": "miaomiaoce.sensor_ht.t2",
+   "room": "阳台",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00150",
+   "name": "阳台筒灯26",
+   "model": "yeelink.light.downlight3",
+   "room": "阳台",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 70
+   }
+  },
+  {
+   "did": "v00151",
+   "name": "阳台智能插座27",
+   "model": "qmi.plug.psv3",
+   "room": "阳台",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00152",
+   "name": "阳台灯泡28",
+   "model": "yeelink.light.color1",
+   "room": "阳台",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 84
+   }
+  },
+  {
+   "did": "v00153",
+   "name": "阳台人体传感器29",
+   "model": "lumi.motion.ac01",
+   "room": "阳台",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00154",
+   "name": "阳台智能开关30",
+   "model": "lumi.ctrl_ln1.aq1",
+   "room": "阳台",
+   "online": true,
+   "state": {
+    "on": false,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00155",
+   "name": "阳台温湿度计31",
+   "model": "miaomiaoce.sensor_ht.t2",
+   "room": "阳台",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00156",
+   "name": "阳台筒灯32",
+   "model": "yeelink.light.downlight3",
+   "room": "阳台",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 52
+   }
+  },
+  {
+   "did": "v00157",
+   "name": "阳台智能插座33",
+   "model": "qmi.plug.psv3",
+   "room": "阳台",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00158",
+   "name": "阳台灯泡34",
+   "model": "yeelink.light.color1",
+   "room": "阳台",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 66
+   }
+  },
+  {
+   "did": "v00159",
+   "name": "阳台人体传感器35",
+   "model": "lumi.motion.ac01",
+   "room": "阳台",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00160",
+   "name": "阳台智能开关36",
+   "model": "lumi.ctrl_ln1.aq1",
+   "room": "阳台",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00161",
+   "name": "阳台温湿度计37",
+   "model": "miaomiaoce.sensor_ht.t2",
+   "room": "阳台",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00162",
+   "name": "阳台筒灯38",
+   "model": "yeelink.light.downlight3",
+   "room": "阳台",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 94
+   }
+  },
+  {
+   "did": "v00163",
+   "name": "阳台智能插座39",
+   "model": "qmi.plug.psv3",
+   "room": "阳台",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00164",
+   "name": "阳台灯泡40",
+   "model": "yeelink.light.color1",
+   "room": "阳台",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 48
+   }
+  },
+  {
+   "did": "v00165",
+   "name": "阳台人体传感器41",
+   "model": "lumi.motion.ac01",
+   "room": "阳台",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00166",
+   "name": "阳台智能开关42",
+   "model": "lumi.ctrl_ln1.aq1",
+   "room": "阳台",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00167",
+   "name": "阳台温湿度计43",
+   "model": "miaomiaoce.sensor_ht.t2",
+   "room": "阳台",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00168",
+   "name": "阳台筒灯44",
+   "model": "yeelink.light.downlight3",
+   "room": "阳台",
+   "online": true,
+   "state": {
+    "on": false,
+    "brightness": 76
+   }
+  },
+  {
+   "did": "v00169",
+   "name": "阳台智能插座45",
+   "model": "qmi.plug.psv3",
+   "room": "阳台",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00170",
+   "name": "阳台灯泡46",
+   "model": "yeelink.light.color1",
+   "room": "阳台",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 90
+   }
+  },
+  {
+   "did": "v00171",
+   "name": "卧室1吸顶灯",
+   "model": "yeelink.light.ceiling1",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 97,
+    "color-temperature": 3230
+   }
+  },
+  {
+   "did": "v00172",
+   "name": "卧室1床头灯1",
+   "model": "yeelink.light.lamp2",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 44
+   }
+  },
+  {
+   "did": "v00173",
+   "name": "卧室1床头灯2",
+   "model": "yeelink.light.bslamp2",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 51
+   }
+  },
+  {
+   "did": "v00174",
+   "name": "卧室1台灯1",
+   "model": "xiaomi.light.lamp31",
+   "room": "卧室1",
+   "online": false,
+   "state": {
+    "on": true,
+    "brightness": 58,
+    "color-temperature": 3620
+   }
+  },
+  {
+   "did": "v00175",
+   "name": "卧室1台灯2",
+   "model": "yeelink.light.lamp4",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": false,
+    "brightness": 65,
+    "color-temperature": 3750
+   }
+  },
+  {
+   "did": "v00176",
+   "name": "卧室1筒灯1",
+   "model": "yeelink.light.downlight3",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 72
+   }
+  },
+  {
+   "did": "v00177",
+   "name": "卧室1筒灯2",
+   "model": "lumi.light.aqcn02",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 79
+   }
+  },
+  {
+   "did": "v00178",
+   "name": "卧室1筒灯3",
+   "model": "yeelink.light.downlight3",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 86
+   }
+  },
+  {
+   "did": "v00179",
+   "name": "卧室1筒灯4",
+   "model": "lumi.light.aqcn02",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 93
+   }
+  },
+  {
+   "did": "v00180",
+   "name": "卧室1筒灯5",
+   "model": "yeelink.light.downlight3",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 40
+   }
+  },
+  {
+   "did": "v00181",
+   "name": "卧室1灯泡1",
+   "model": "yeelink.light.color1",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 47
+   }
+  },
+  {
+   "did": "v00182",
+   "name": "卧室1灯泡2",
+   "model": "yeelink.light.mono1",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": false,
+    "brightness": 54
+   }
+  },
+  {
+   "did": "v00183",
+   "name": "卧室1空调",
+   "model": "xiaomi.aircondition.c32",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100,
+    "target-temperature": 27,
+    "fan-level": 1
+   }
+  },
+  {
+   "did": "v00184",
+   "name": "卧室1空气净化器",
+   "model": "zhimi.airpurifier.m2",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100,
+    "fan-level": 2
+   }
+  },
+  {
+   "did": "v00185",
+   "name": "卧室1加湿器",
+   "model": "zhimi.humidifier.cb1",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true,
+    "target-humidity": 55,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00186",
+   "name": "卧室1小爱音箱1",
+   "model": "xiaomi.wifispeaker.x08c",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true,
+    "volume": 41,
+    "mute": true
+   }
+  },
+  {
+   "did": "v00187",
+   "name": "卧室1小爱音箱2",
+   "model": "xiaomi.wifispeaker.x10",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true,
+    "volume": 42,
+    "mute": false
+   }
+  },
+  {
+   "did": "v00188",
+   "name": "卧室1智能开关1",
+   "model": "lumi.ctrl_ln1.aq1",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00189",
+   "name": "卧室1智能开关2",
+   "model": "lumi.ctrl_ln2.aq1",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": false,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00190",
+   "name": "卧室1窗帘电机",
+   "model": "lumi.curtain.hmcn1",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "target-position": 100
+   }
+  },
+  {
+   "did": "v00191",
+   "name": "卧室1智能插座1",
+   "model": "chuangmi.plug.v3",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00192",
+   "name": "卧室1智能插座2",
+   "model": "chuangmi.plug.m3",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00193",
+   "name": "卧室1智能插座3",
+   "model": "qmi.plug.psv3",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00194",
+   "name": "卧室1智能插座4",
+   "model": "cuco.plug.v3",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00195",
+   "name": "卧室1智能插座5",
+   "model": "chuangmi.plug.v3",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00196",
+   "name": "卧室1智能排插",
+   "model": "zimi.powerstrip.v2",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": false
+   }
+  },
+  {
+   "did": "v00197",
+   "name": "卧室1温湿度计1",
+   "model": "miaomiaoce.sensor_ht.t2",
+   "room": "卧室1",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00198",
+   "name": "卧室1温湿度计2",
+   "model": "miaomiaoce.sensor_ht.t1",
+   "room": "卧室1",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00199",
+   "name": "卧室1人体传感器",
+   "model": "lumi.sensor_motion.v2",
+   "room": "卧室1",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00200",
+   "name": "卧室1门窗传感器",
+   "model": "lumi.sensor_magnet.v2",
+   "room": "卧室1",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00201",
+   "name": "卧室1摄像机",
+   "model": "chuangmi.camera.069a01",
+   "room": "卧室1",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00202",
+   "name": "卧室1智能门锁",
+   "model": "loock.lock.v5",
+   "room": "卧室1",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00203",
+   "name": "卧室1筒灯33",
+   "model": "lumi.light.aqcn02",
+   "room": "卧室1",
+   "online": false,
+   "state": {
+    "on": false,
+    "brightness": 81
+   }
+  },
+  {
+   "did": "v00204",
+   "name": "卧室1智能插座34",
+   "model": "cuco.plug.v3",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00205",
+   "name": "卧室1灯泡35",
+   "model": "yeelink.light.mono1",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 95
+   }
+  },
+  {
+   "did": "v00206",
+   "name": "卧室1人体传感器36",
+   "model": "lumi.sensor_motion.v2",
+   "room": "卧室1",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00207",
+   "name": "卧室1智能开关37",
+   "model": "lumi.ctrl_ln2.aq1",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00208",
+   "name": "卧室1温湿度计38",
+   "model": "miaomiaoce.sensor_ht.t1",
+   "room": "卧室1",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00209",
+   "name": "卧室1筒灯39",
+   "model": "lumi.light.aqcn02",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 63
+   }
+  },
+  {
+   "did": "v00210",
+   "name": "卧室1智能插座40",
+   "model": "cuco.plug.v3",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": false
+   }
+  },
+  {
+   "did": "v00211",
+   "name": "卧室1灯泡41",
+   "model": "yeelink.light.mono1",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 77
+   }
+  },
+  {
+   "did": "v00212",
+   "name": "卧室1人体传感器42",
+   "model": "lumi.sensor_motion.v2",
+   "room": "卧室1",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00213",
+   "name": "卧室1智能开关43",
+   "model": "lumi.ctrl_ln2.aq1",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00214",
+   "name": "卧室1温湿度计44",
+   "model": "miaomiaoce.sensor_ht.t1",
+   "room": "卧室1",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00215",
+   "name": "卧室1筒灯45",
+   "model": "lumi.light.aqcn02",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 45
+   }
+  },
+  {
+   "did": "v00216",
+   "name": "卧室1智能插座46",
+   "model": "cuco.plug.v3",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00217",
+   "name": "卧室1灯泡47",
+   "model": "yeelink.light.mono1",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": false,
+    "brightness": 59
+   }
+  },
+  {
+   "did": "v00218",
+   "name": "卧室1人体传感器48",
+   "model": "lumi.sensor_motion.v2",
+   "room": "卧室1",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00219",
+   "name": "卧室1智能开关49",
+   "model": "lumi.ctrl_ln2.aq1",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00220",
+   "name": "卧室1温湿度计50",
+   "model": "miaomiaoce.sensor_ht.t1",
+   "room": "卧室1",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00221",
+   "name": "卧室1筒灯51",
+   "model": "lumi.light.aqcn02",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 87
+   }
+  },
+  {
+   "did": "v00222",
+   "name": "卧室1智能插座52",
+   "model": "cuco.plug.v3",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00223",
+   "name": "卧室1灯泡53",
+   "model": "yeelink.light.mono1",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 41
+   }
+  },
+  {
+   "did": "v00224",
+   "name": "卧室1人体传感器54",
+   "model": "lumi.sensor_motion.v2",
+   "room": "卧室1",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00225",
+   "name": "卧室1智能开关55",
+   "model": "lumi.ctrl_ln2.aq1",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00226",
+   "name": "卧室1温湿度计56",
+   "model": "miaomiaoce.sensor_ht.t1",
+   "room": "卧室1",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00227",
+   "name": "卧室1筒灯57",
+   "model": "lumi.light.aqcn02",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 69
+   }
+  },
+  {
+   "did": "v00228",
+   "name": "卧室1智能插座58",
+   "model": "cuco.plug.v3",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00229",
+   "name": "卧室1灯泡59",
+   "model": "yeelink.light.mono1",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 83
+   }
+  },
+  {
+   "did": "v00230",
+   "name": "卧室1人体传感器60",
+   "model": "lumi.sensor_motion.v2",
+   "room": "卧室1",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00231",
+   "name": "卧室1智能开关61",
+   "model": "lumi.ctrl_ln2.aq1",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": false,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00232",
+   "name": "卧室1温湿度计62",
+   "model": "miaomiaoce.sensor_ht.t1",
+   "room": "卧室1",
+   "online": false,
+   "state": {}
+  },
+  {
+   "did": "v00233",
+   "name": "卧室1筒灯63",
+   "model": "lumi.light.aqcn02",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 51
+   }
+  },
+  {
+   "did": "v00234",
+   "name": "卧室1智能插座64",
+   "model": "cuco.plug.v3",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00235",
+   "name": "卧室1灯泡65",
+   "model": "yeelink.light.mono1",
+   "room": "卧室1",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 65
+   }
+  },
+  {
+   "did": "v00236",
+   "name": "卧室1人体传感器66",
+   "model": "lumi.sensor_motion.v2",
+   "room": "卧室1",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00237",
+   "name": "卧室2吸顶灯",
+   "model": "yeelink.light.ceiling1",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 79,
+    "color-temperature": 3810
+   }
+  },
+  {
+   "did": "v00238",
+   "name": "卧室2床头灯",
+   "model": "yeelink.light.lamp2",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": false,
+    "brightness": 86
+   }
+  },
+  {
+   "did": "v00239",
+   "name": "卧室2台灯",
+   "model": "xiaomi.light.lamp31",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 93,
+    "color-temperature": 4070
+   }
+  },
+  {
+   "did": "v00240",
+   "name": "卧室2筒灯1",
+   "model": "yeelink.light.downlight3",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 40
+   }
+  },
+  {
+   "did": "v00241",
+   "name": "卧室2筒灯2",
+   "model": "lumi.light.aqcn02",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 47
+   }
+  },
+  {
+   "did": "v00242",
+   "name": "卧室2筒灯3",
+   "model": "yeelink.light.downlight3",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 54
+   }
+  },
+  {
+   "did": "v00243",
+   "name": "卧室2筒灯4",
+   "model": "lumi.light.aqcn02",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 61
+   }
+  },
+  {
+   "did": "v00244",
+   "name": "卧室2灯泡",
+   "model": "yeelink.light.color1",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 68
+   }
+  },
+  {
+   "did": "v00245",
+   "name": "卧室2空调",
+   "model": "xiaomi.aircondition.c32",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": false,
+    "mode": 100,
+    "target-temperature": 24,
+    "fan-level": 3
+   }
+  },
+  {
+   "did": "v00246",
+   "name": "卧室2空气净化器",
+   "model": "zhimi.airpurifier.m2",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100,
+    "fan-level": 1
+   }
+  },
+  {
+   "did": "v00247",
+   "name": "卧室2电风扇",
+   "model": "zhimi.fan.v2",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": true,
+    "fan-level": 2,
+    "swing": false
+   }
+  },
+  {
+   "did": "v00248",
+   "name": "卧室2小爱音箱",
+   "model": "xiaomi.wifispeaker.x08c",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": true,
+    "volume": 23,
+    "mute": false
+   }
+  },
+  {
+   "did": "v00249",
+   "name": "卧室2智能开关",
+   "model": "lumi.ctrl_ln1.aq1",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00250",
+   "name": "卧室2窗帘电机",
+   "model": "lumi.curtain.hmcn1",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "target-position": 100
+   }
+  },
+  {
+   "did": "v00251",
+   "name": "卧室2智能插座1",
+   "model": "chuangmi.plug.v3",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00252",
+   "name": "卧室2智能插座2",
+   "model": "chuangmi.plug.m3",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": false
+   }
+  },
+  {
+   "did": "v00253",
+   "name": "卧室2智能插座3",
+   "model": "qmi.plug.psv3",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00254",
+   "name": "卧室2智能插座4",
+   "model": "cuco.plug.v3",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00255",
+   "name": "卧室2温湿度计",
+   "model": "miaomiaoce.sensor_ht.t2",
+   "room": "卧室2",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00256",
+   "name": "卧室2人体传感器",
+   "model": "lumi.sensor_motion.v2",
+   "room": "卧室2",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00257",
+   "name": "卧室2门窗传感器",
+   "model": "lumi.sensor_magnet.v2",
+   "room": "卧室2",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00258",
+   "name": "卧室2体温计",
+   "model": "miaomiaoce.temperature.h1",
+   "room": "卧室2",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00259",
+   "name": "卧室2智能网关",
+   "model": "lumi.gateway.v3",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "light": 100,
+    "alarm": false
+   }
+  },
+  {
+   "did": "v00260",
+   "name": "卧室2筒灯24",
+   "model": "yeelink.light.downlight3",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 60
+   }
+  },
+  {
+   "did": "v00261",
+   "name": "卧室2智能插座25",
+   "model": "qmi.plug.psv3",
+   "room": "卧室2",
+   "online": false,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00262",
+   "name": "卧室2灯泡26",
+   "model": "yeelink.light.mono1",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 74
+   }
+  },
+  {
+   "did": "v00263",
+   "name": "卧室2人体传感器27",
+   "model": "lumi.sensor_motion.v2",
+   "room": "卧室2",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00264",
+   "name": "卧室2智能开关28",
+   "model": "lumi.ctrl_ln1.aq1",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00265",
+   "name": "卧室2温湿度计29",
+   "model": "miaomiaoce.sensor_ht.t1",
+   "room": "卧室2",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00266",
+   "name": "卧室2筒灯30",
+   "model": "yeelink.light.downlight3",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": false,
+    "brightness": 42
+   }
+  },
+  {
+   "did": "v00267",
+   "name": "卧室2智能插座31",
+   "model": "qmi.plug.psv3",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00268",
+   "name": "卧室2灯泡32",
+   "model": "yeelink.light.mono1",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 56
+   }
+  },
+  {
+   "did": "v00269",
+   "name": "卧室2人体传感器33",
+   "model": "lumi.sensor_motion.v2",
+   "room": "卧室2",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00270",
+   "name": "卧室2智能开关34",
+   "model": "lumi.ctrl_ln1.aq1",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00271",
+   "name": "卧室2温湿度计35",
+   "model": "miaomiaoce.sensor_ht.t1",
+   "room": "卧室2",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00272",
+   "name": "卧室2筒灯36",
+   "model": "yeelink.light.downlight3",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 84
+   }
+  },
+  {
+   "did": "v00273",
+   "name": "卧室2智能插座37",
+   "model": "qmi.plug.psv3",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": false
+   }
+  },
+  {
+   "did": "v00274",
+   "name": "卧室2灯泡38",
+   "model": "yeelink.light.mono1",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 98
+   }
+  },
+  {
+   "did": "v00275",
+   "name": "卧室2人体传感器39",
+   "model": "lumi.sensor_motion.v2",
+   "room": "卧室2",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00276",
+   "name": "卧室2智能开关40",
+   "model": "lumi.ctrl_ln1.aq1",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00277",
+   "name": "卧室2温湿度计41",
+   "model": "miaomiaoce.sensor_ht.t1",
+   "room": "卧室2",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00278",
+   "name": "卧室2筒灯42",
+   "model": "yeelink.light.downlight3",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 66
+   }
+  },
+  {
+   "did": "v00279",
+   "name": "卧室2智能插座43",
+   "model": "qmi.plug.psv3",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00280",
+   "name": "卧室2灯泡44",
+   "model": "yeelink.light.mono1",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": false,
+    "brightness": 80
+   }
+  },
+  {
+   "did": "v00281",
+   "name": "卧室2人体传感器45",
+   "model": "lumi.sensor_motion.v2",
+   "room": "卧室2",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00282",
+   "name": "卧室2智能开关46",
+   "model": "lumi.ctrl_ln1.aq1",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00283",
+   "name": "卧室2温湿度计47",
+   "model": "miaomiaoce.sensor_ht.t1",
+   "room": "卧室2",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00284",
+   "name": "卧室2筒灯48",
+   "model": "yeelink.light.downlight3",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 48
+   }
+  },
+  {
+   "did": "v00285",
+   "name": "卧室2智能插座49",
+   "model": "qmi.plug.psv3",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00286",
+   "name": "卧室2灯泡50",
+   "model": "yeelink.light.mono1",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 62
+   }
+  },
+  {
+   "did": "v00287",
+   "name": "卧室2人体传感器51",
+   "model": "lumi.sensor_motion.v2",
+   "room": "卧室2",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00288",
+   "name": "卧室2智能开关52",
+   "model": "lumi.ctrl_ln1.aq1",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00289",
+   "name": "卧室2温湿度计53",
+   "model": "miaomiaoce.sensor_ht.t1",
+   "room": "卧室2",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00290",
+   "name": "卧室2筒灯54",
+   "model": "yeelink.light.downlight3",
+   "room": "卧室2",
+   "online": false,
+   "state": {
+    "on": true,
+    "brightness": 90
+   }
+  },
+  {
+   "did": "v00291",
+   "name": "卧室2智能插座55",
+   "model": "qmi.plug.psv3",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00292",
+   "name": "卧室2灯泡56",
+   "model": "yeelink.light.mono1",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 44
+   }
+  },
+  {
+   "did": "v00293",
+   "name": "卧室2人体传感器57",
+   "model": "lumi.sensor_motion.v2",
+   "room": "卧室2",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00294",
+   "name": "卧室2智能开关58",
+   "model": "lumi.ctrl_ln1.aq1",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": false,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00295",
+   "name": "卧室2温湿度计59",
+   "model": "miaomiaoce.sensor_ht.t1",
+   "room": "卧室2",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00296",
+   "name": "卧室2筒灯60",
+   "model": "yeelink.light.downlight3",
+   "room": "卧室2",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 72
+   }
+  },
+  {
+   "did": "v00297",
+   "name": "书房吸顶灯",
+   "model": "yeelink.light.ceiling1",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 79,
+    "color-temperature": 3610
+   }
+  },
+  {
+   "did": "v00298",
+   "name": "书房台灯1",
+   "model": "xiaomi.light.lamp31",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 86,
+    "color-temperature": 3740
+   }
+  },
+  {
+   "did": "v00299",
+   "name": "书房台灯2",
+   "model": "yeelink.light.lamp4",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 93,
+    "color-temperature": 3870
+   }
+  },
+  {
+   "did": "v00300",
+   "name": "书房筒灯1",
+   "model": "yeelink.light.downlight3",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 40
+   }
+  },
+  {
+   "did": "v00301",
+   "name": "书房筒灯2",
+   "model": "lumi.light.aqcn02",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": false,
+    "brightness": 47
+   }
+  },
+  {
+   "did": "v00302",
+   "name": "书房筒灯3",
+   "model": "yeelink.light.downlight3",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 54
+   }
+  },
+  {
+   "did": "v00303",
+   "name": "书房灯带",
+   "model": "yeelink.light.strip1",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 61,
+    "color-temperature": 4390
+   }
+  },
+  {
+   "did": "v00304",
+   "name": "书房灯泡",
+   "model": "yeelink.light.color1",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 68
+   }
+  },
+  {
+   "did": "v00305",
+   "name": "书房空调",
+   "model": "xiaomi.aircondition.c32",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100,
+    "target-temperature": 24,
+    "fan-level": 3
+   }
+  },
+  {
+   "did": "v00306",
+   "name": "书房空气净化器",
+   "model": "zhimi.airpurifier.m2",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100,
+    "fan-level": 1
+   }
+  },
+  {
+   "did": "v00307",
+   "name": "书房除湿机",
+   "model": "zhimi.humidifier.de1",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": true,
+    "target-humidity": 57
+   }
+  },
+  {
+   "did": "v00308",
+   "name": "书房智能插座1",
+   "model": "chuangmi.plug.v3",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": false
+   }
+  },
+  {
+   "did": "v00309",
+   "name": "书房智能插座2",
+   "model": "chuangmi.plug.m3",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00310",
+   "name": "书房智能插座3",
+   "model": "qmi.plug.psv3",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00311",
+   "name": "书房智能插座4",
+   "model": "cuco.plug.v3",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00312",
+   "name": "书房智能插座5",
+   "model": "chuangmi.plug.v3",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00313",
+   "name": "书房智能排插",
+   "model": "zimi.powerstrip.v2",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00314",
+   "name": "书房智能开关1",
+   "model": "lumi.ctrl_ln1.aq1",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00315",
+   "name": "书房智能开关2",
+   "model": "lumi.ctrl_ln2.aq1",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": false,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00316",
+   "name": "书房路由器",
+   "model": "xiaomi.router.ax6000",
+   "room": "书房",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00317",
+   "name": "书房小爱音箱",
+   "model": "xiaomi.wifispeaker.x08c",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": true,
+    "volume": 52,
+    "mute": false
+   }
+  },
+  {
+   "did": "v00318",
+   "name": "书房窗帘电机",
+   "model": "lumi.curtain.hmcn1",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "target-position": 100
+   }
+  },
+  {
+   "did": "v00319",
+   "name": "书房温湿度计",
+   "model": "miaomiaoce.sensor_ht.t2",
+   "room": "书房",
+   "online": false,
+   "state": {}
+  },
+  {
+   "did": "v00320",
+   "name": "书房人体传感器",
+   "model": "lumi.sensor_motion.v2",
+   "room": "书房",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00321",
+   "name": "书房门窗传感器",
+   "model": "lumi.sensor_magnet.v2",
+   "room": "书房",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00322",
+   "name": "书房光照传感器",
+   "model": "lumi.sensor_light.aqcn02",
+   "room": "书房",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00323",
+   "name": "书房摄像机",
+   "model": "chuangmi.camera.069a01",
+   "room": "书房",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00324",
+   "name": "书房筒灯28",
+   "model": "yeelink.light.downlight3",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 88
+   }
+  },
+  {
+   "did": "v00325",
+   "name": "书房智能插座29",
+   "model": "qmi.plug.psv3",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00326",
+   "name": "书房灯泡30",
+   "model": "leshi.light.ceiling01",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 42
+   }
+  },
+  {
+   "did": "v00327",
+   "name": "书房人体传感器31",
+   "model": "lumi.sensor_motion.aq2",
+   "room": "书房",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00328",
+   "name": "书房智能开关32",
+   "model": "lumi.ctrl_ln1.aq1",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00329",
+   "name": "书房温湿度计33",
+   "model": "lumi.sensor_ht.v3",
+   "room": "书房",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00330",
+   "name": "书房筒灯34",
+   "model": "yeelink.light.downlight3",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 70
+   }
+  },
+  {
+   "did": "v00331",
+   "name": "书房智能插座35",
+   "model": "qmi.plug.psv3",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00332",
+   "name": "书房灯泡36",
+   "model": "leshi.light.ceiling01",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 84
+   }
+  },
+  {
+   "did": "v00333",
+   "name": "书房人体传感器37",
+   "model": "lumi.sensor_motion.aq2",
+   "room": "书房",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00334",
+   "name": "书房智能开关38",
+   "model": "lumi.ctrl_ln1.aq1",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00335",
+   "name": "书房温湿度计39",
+   "model": "lumi.sensor_ht.v3",
+   "room": "书房",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00336",
+   "name": "书房筒灯40",
+   "model": "yeelink.light.downlight3",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": false,
+    "brightness": 52
+   }
+  },
+  {
+   "did": "v00337",
+   "name": "书房智能插座41",
+   "model": "qmi.plug.psv3",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00338",
+   "name": "书房灯泡42",
+   "model": "leshi.light.ceiling01",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 66
+   }
+  },
+  {
+   "did": "v00339",
+   "name": "书房人体传感器43",
+   "model": "lumi.sensor_motion.aq2",
+   "room": "书房",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00340",
+   "name": "书房智能开关44",
+   "model": "lumi.ctrl_ln1.aq1",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00341",
+   "name": "书房温湿度计45",
+   "model": "lumi.sensor_ht.v3",
+   "room": "书房",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00342",
+   "name": "书房筒灯46",
+   "model": "yeelink.light.downlight3",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 94
+   }
+  },
+  {
+   "did": "v00343",
+   "name": "书房智能插座47",
+   "model": "qmi.plug.psv3",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": false
+   }
+  },
+  {
+   "did": "v00344",
+   "name": "书房灯泡48",
+   "model": "leshi.light.ceiling01",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 48
+   }
+  },
+  {
+   "did": "v00345",
+   "name": "书房人体传感器49",
+   "model": "lumi.sensor_motion.aq2",
+   "room": "书房",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00346",
+   "name": "书房智能开关50",
+   "model": "lumi.ctrl_ln1.aq1",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00347",
+   "name": "书房温湿度计51",
+   "model": "lumi.sensor_ht.v3",
+   "room": "书房",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00348",
+   "name": "书房筒灯52",
+   "model": "yeelink.light.downlight3",
+   "room": "书房",
+   "online": false,
+   "state": {
+    "on": true,
+    "brightness": 76
+   }
+  },
+  {
+   "did": "v00349",
+   "name": "书房智能插座53",
+   "model": "qmi.plug.psv3",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00350",
+   "name": "书房灯泡54",
+   "model": "leshi.light.ceiling01",
+   "room": "书房",
+   "online": true,
+   "state": {
+    "on": false,
+    "brightness": 90
+   }
+  },
+  {
+   "did": "v00351",
+   "name": "厕所1吸顶灯",
+   "model": "yeelink.light.ceiling1",
+   "room": "厕所1",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 97,
+    "color-temperature": 4630
+   }
+  },
+  {
+   "did": "v00352",
+   "name": "厕所1筒灯1",
+   "model": "yeelink.light.downlight3",
+   "room": "厕所1",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 44
+   }
+  },
+  {
+   "did": "v00353",
+   "name": "厕所1筒灯2",
+   "model": "lumi.light.aqcn02",
+   "room": "厕所1",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 51
+   }
+  },
+  {
+   "did": "v00354",
+   "name": "厕所1智能浴霸",
+   "model": "dmaker.bathroom.1",
+   "room": "厕所1",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00355",
+   "name": "厕所1排风扇",
+   "model": "dmaker.bathroom.heater",
+   "room": "厕所1",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00356",
+   "name": "厕所1智能马桶",
+   "model": "madefree.toilet.n1",
+   "room": "厕所1",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00357",
+   "name": "厕所1燃气热水器",
+   "model": "midjd.waterheater.v1",
+   "room": "厕所1",
+   "online": true,
+   "state": {
+    "on": false,
+    "target-temperature": 26
+   }
+  },
+  {
+   "did": "v00358",
+   "name": "厕所1智能插座1",
+   "model": "chuangmi.plug.v3",
+   "room": "厕所1",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00359",
+   "name": "厕所1智能插座2",
+   "model": "chuangmi.plug.m3",
+   "room": "厕所1",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00360",
+   "name": "厕所1智能开关",
+   "model": "lumi.ctrl_ln1.aq1",
+   "room": "厕所1",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00361",
+   "name": "厕所1温湿度计",
+   "model": "miaomiaoce.sensor_ht.t2",
+   "room": "厕所1",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00362",
+   "name": "厕所1人体传感器",
+   "model": "lumi.sensor_motion.v2",
+   "room": "厕所1",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00363",
+   "name": "厕所1水浸传感器",
+   "model": "lumi.sensor_wleak.aq1",
+   "room": "厕所1",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00364",
+   "name": "厕所1体温计",
+   "model": "miaomiaoce.temperature.h1",
+   "room": "厕所1",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00365",
+   "name": "厕所1筒灯15",
+   "model": "lumi.light.aqcn02",
+   "room": "厕所1",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 75
+   }
+  },
+  {
+   "did": "v00366",
+   "name": "厕所1智能插座16",
+   "model": "chuangmi.plug.m3",
+   "room": "厕所1",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00367",
+   "name": "厕所1灯泡17",
+   "model": "yeelink.light.mono1",
+   "room": "厕所1",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 89
+   }
+  },
+  {
+   "did": "v00368",
+   "name": "厕所1人体传感器18",
+   "model": "lumi.sensor_motion.v2",
+   "room": "厕所1",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00369",
+   "name": "厕所1智能开关19",
+   "model": "lumi.ctrl_neutral2",
+   "room": "厕所1",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00370",
+   "name": "厕所1温湿度计20",
+   "model": "miaomiaoce.sensor_ht.t1",
+   "room": "厕所1",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00371",
+   "name": "厕所1筒灯21",
+   "model": "lumi.light.aqcn02",
+   "room": "厕所1",
+   "online": true,
+   "state": {
+    "on": false,
+    "brightness": 57
+   }
+  },
+  {
+   "did": "v00372",
+   "name": "厕所1智能插座22",
+   "model": "chuangmi.plug.m3",
+   "room": "厕所1",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00373",
+   "name": "厕所1灯泡23",
+   "model": "yeelink.light.mono1",
+   "room": "厕所1",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 71
+   }
+  },
+  {
+   "did": "v00374",
+   "name": "厕所1人体传感器24",
+   "model": "lumi.sensor_motion.v2",
+   "room": "厕所1",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00375",
+   "name": "厕所1智能开关25",
+   "model": "lumi.ctrl_neutral2",
+   "room": "厕所1",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00376",
+   "name": "厕所1温湿度计26",
+   "model": "miaomiaoce.sensor_ht.t1",
+   "room": "厕所1",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00377",
+   "name": "厕所1筒灯27",
+   "model": "lumi.light.aqcn02",
+   "room": "厕所1",
+   "online": false,
+   "state": {
+    "on": true,
+    "brightness": 99
+   }
+  },
+  {
+   "did": "v00378",
+   "name": "厕所1智能插座28",
+   "model": "chuangmi.plug.m3",
+   "room": "厕所1",
+   "online": true,
+   "state": {
+    "on": false
+   }
+  },
+  {
+   "did": "v00379",
+   "name": "厕所1灯泡29",
+   "model": "yeelink.light.mono1",
+   "room": "厕所1",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 53
+   }
+  },
+  {
+   "did": "v00380",
+   "name": "厕所1人体传感器30",
+   "model": "lumi.sensor_motion.v2",
+   "room": "厕所1",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00381",
+   "name": "厕所1智能开关31",
+   "model": "lumi.ctrl_neutral2",
+   "room": "厕所1",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00382",
+   "name": "厕所1温湿度计32",
+   "model": "miaomiaoce.sensor_ht.t1",
+   "room": "厕所1",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00383",
+   "name": "厕所1筒灯33",
+   "model": "lumi.light.aqcn02",
+   "room": "厕所1",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 81
+   }
+  },
+  {
+   "did": "v00384",
+   "name": "厕所1智能插座34",
+   "model": "chuangmi.plug.m3",
+   "room": "厕所1",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00385",
+   "name": "厕所1灯泡35",
+   "model": "yeelink.light.mono1",
+   "room": "厕所1",
+   "online": true,
+   "state": {
+    "on": false,
+    "brightness": 95
+   }
+  },
+  {
+   "did": "v00386",
+   "name": "厕所1人体传感器36",
+   "model": "lumi.sensor_motion.v2",
+   "room": "厕所1",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00387",
+   "name": "厕所1智能开关37",
+   "model": "lumi.ctrl_neutral2",
+   "room": "厕所1",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00388",
+   "name": "厕所1温湿度计38",
+   "model": "miaomiaoce.sensor_ht.t1",
+   "room": "厕所1",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00389",
+   "name": "厕所1筒灯39",
+   "model": "lumi.light.aqcn02",
+   "room": "厕所1",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 63
+   }
+  },
+  {
+   "did": "v00390",
+   "name": "厕所1智能插座40",
+   "model": "chuangmi.plug.m3",
+   "room": "厕所1",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00391",
+   "name": "厕所1灯泡41",
+   "model": "yeelink.light.mono1",
+   "room": "厕所1",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 77
+   }
+  },
+  {
+   "did": "v00392",
+   "name": "厕所1人体传感器42",
+   "model": "lumi.sensor_motion.v2",
+   "room": "厕所1",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00393",
+   "name": "厕所2吸顶灯",
+   "model": "yeelink.light.ceiling1",
+   "room": "厕所2",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 91,
+    "color-temperature": 4090
+   }
+  },
+  {
+   "did": "v00394",
+   "name": "厕所2筒灯1",
+   "model": "yeelink.light.downlight3",
+   "room": "厕所2",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 98
+   }
+  },
+  {
+   "did": "v00395",
+   "name": "厕所2筒灯2",
+   "model": "lumi.light.aqcn02",
+   "room": "厕所2",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 45
+   }
+  },
+  {
+   "did": "v00396",
+   "name": "厕所2智能浴霸",
+   "model": "dmaker.bathroom.1",
+   "room": "厕所2",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00397",
+   "name": "厕所2排风扇",
+   "model": "dmaker.bathroom.heater",
+   "room": "厕所2",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00398",
+   "name": "厕所2智能马桶",
+   "model": "madefree.toilet.n1",
+   "room": "厕所2",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00399",
+   "name": "厕所2智能插座1",
+   "model": "chuangmi.plug.v3",
+   "room": "厕所2",
+   "online": true,
+   "state": {
+    "on": false
+   }
+  },
+  {
+   "did": "v00400",
+   "name": "厕所2智能插座2",
+   "model": "chuangmi.plug.m3",
+   "room": "厕所2",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00401",
+   "name": "厕所2智能开关",
+   "model": "lumi.ctrl_ln1.aq1",
+   "room": "厕所2",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00402",
+   "name": "厕所2温湿度计",
+   "model": "miaomiaoce.sensor_ht.t2",
+   "room": "厕所2",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00403",
+   "name": "厕所2人体传感器",
+   "model": "lumi.sensor_motion.v2",
+   "room": "厕所2",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00404",
+   "name": "厕所2水浸传感器",
+   "model": "lumi.sensor_wleak.aq1",
+   "room": "厕所2",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00405",
+   "name": "厕所2筒灯13",
+   "model": "lumi.light.aqcn02",
+   "room": "厕所2",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 55
+   }
+  },
+  {
+   "did": "v00406",
+   "name": "厕所2智能插座14",
+   "model": "cuco.plug.v3",
+   "room": "厕所2",
+   "online": false,
+   "state": {
+    "on": false
+   }
+  },
+  {
+   "did": "v00407",
+   "name": "厕所2灯泡15",
+   "model": "leshi.light.ceiling01",
+   "room": "厕所2",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 69
+   }
+  },
+  {
+   "did": "v00408",
+   "name": "厕所2人体传感器16",
+   "model": "lumi.sensor_motion.aq2",
+   "room": "厕所2",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00409",
+   "name": "厕所2智能开关17",
+   "model": "lumi.ctrl_ln2.aq1",
+   "room": "厕所2",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00410",
+   "name": "厕所2温湿度计18",
+   "model": "lumi.sensor_ht.v3",
+   "room": "厕所2",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00411",
+   "name": "厕所2筒灯19",
+   "model": "lumi.light.aqcn02",
+   "room": "厕所2",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 97
+   }
+  },
+  {
+   "did": "v00412",
+   "name": "厕所2智能插座20",
+   "model": "cuco.plug.v3",
+   "room": "厕所2",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00413",
+   "name": "厕所2灯泡21",
+   "model": "leshi.light.ceiling01",
+   "room": "厕所2",
+   "online": true,
+   "state": {
+    "on": false,
+    "brightness": 51
+   }
+  },
+  {
+   "did": "v00414",
+   "name": "厕所2人体传感器22",
+   "model": "lumi.sensor_motion.aq2",
+   "room": "厕所2",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00415",
+   "name": "厕所2智能开关23",
+   "model": "lumi.ctrl_ln2.aq1",
+   "room": "厕所2",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00416",
+   "name": "厕所2温湿度计24",
+   "model": "lumi.sensor_ht.v3",
+   "room": "厕所2",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00417",
+   "name": "厕所2筒灯25",
+   "model": "lumi.light.aqcn02",
+   "room": "厕所2",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 79
+   }
+  },
+  {
+   "did": "v00418",
+   "name": "厕所2智能插座26",
+   "model": "cuco.plug.v3",
+   "room": "厕所2",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00419",
+   "name": "厕所2灯泡27",
+   "model": "leshi.light.ceiling01",
+   "room": "厕所2",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 93
+   }
+  },
+  {
+   "did": "v00420",
+   "name": "厕所2人体传感器28",
+   "model": "lumi.sensor_motion.aq2",
+   "room": "厕所2",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00421",
+   "name": "厕所2智能开关29",
+   "model": "lumi.ctrl_ln2.aq1",
+   "room": "厕所2",
+   "online": true,
+   "state": {
+    "on": true,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00422",
+   "name": "厕所2温湿度计30",
+   "model": "lumi.sensor_ht.v3",
+   "room": "厕所2",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00423",
+   "name": "厕所2筒灯31",
+   "model": "lumi.light.aqcn02",
+   "room": "厕所2",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 61
+   }
+  },
+  {
+   "did": "v00424",
+   "name": "厕所2智能插座32",
+   "model": "cuco.plug.v3",
+   "room": "厕所2",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  },
+  {
+   "did": "v00425",
+   "name": "厕所2灯泡33",
+   "model": "leshi.light.ceiling01",
+   "room": "厕所2",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 75
+   }
+  },
+  {
+   "did": "v00426",
+   "name": "厕所2人体传感器34",
+   "model": "lumi.sensor_motion.aq2",
+   "room": "厕所2",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00427",
+   "name": "厕所2智能开关35",
+   "model": "lumi.ctrl_ln2.aq1",
+   "room": "厕所2",
+   "online": true,
+   "state": {
+    "on": false,
+    "mode": 100
+   }
+  },
+  {
+   "did": "v00428",
+   "name": "厕所2温湿度计36",
+   "model": "lumi.sensor_ht.v3",
+   "room": "厕所2",
+   "online": true,
+   "state": {}
+  },
+  {
+   "did": "v00429",
+   "name": "厕所2筒灯37",
+   "model": "lumi.light.aqcn02",
+   "room": "厕所2",
+   "online": true,
+   "state": {
+    "on": true,
+    "brightness": 43
+   }
+  },
+  {
+   "did": "v00430",
+   "name": "厕所2智能插座38",
+   "model": "cuco.plug.v3",
+   "room": "厕所2",
+   "online": true,
+   "state": {
+    "on": true
+   }
+  }
+ ],
+ "scenes": []
+}

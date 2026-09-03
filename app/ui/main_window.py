@@ -15,7 +15,7 @@ import logging
 import sys
 
 import shiboken6
-from PySide6.QtCore import QPropertyAnimation, QPoint, QSize, Qt, QTimer
+from PySide6.QtCore import QEvent, QPropertyAnimation, QPoint, QSize, Qt, QTimer
 from PySide6.QtWidgets import QGraphicsOpacityEffect
 from PySide6.QtGui import QAction, QIcon, QPixmap
 from PySide6.QtWidgets import (
@@ -74,6 +74,7 @@ _RESIZE_MARGIN = 8
 # Windows 原生窗口消息与命中测试代码
 _WM_NCCALCSIZE = 0x0083
 _WM_NCHITTEST = 0x0084
+_WM_GETMINMAXINFO = 0x0024
 _HTCLIENT = 1
 _HTCAPTION = 2
 _HTLEFT = 10
@@ -84,17 +85,42 @@ _HTTOPRIGHT = 14
 _HTBOTTOM = 15
 _HTBOTTOMLEFT = 16
 _HTBOTTOMRIGHT = 17
+_MONITOR_DEFAULTTONEAREST = 0x00000002
+
+
+# WM_GETMINMAXINFO / GetMonitorInfo 用的 Win32 结构（x64 下指针必须
+# 显式声明，否则按 c_int 截断导致取不到正确的显示器工作区）
+class _WinRect(ctypes.Structure):
+    _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long),
+                ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
+
+
+class _MonitorInfo(ctypes.Structure):
+    _fields_ = [("cbSize", ctypes.c_ulong), ("rcMonitor", _WinRect),
+                ("rcWork", _WinRect), ("dwFlags", ctypes.c_ulong)]
+
+
+class _MinMaxInfo(ctypes.Structure):
+    _fields_ = [("ptReserved", wintypes.POINT), ("ptMaxSize", wintypes.POINT),
+                ("ptMaxPosition", wintypes.POINT),
+                ("ptMinTrackSize", wintypes.POINT),
+                ("ptMaxTrackSize", wintypes.POINT)]
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self._service = MijiaService()
+        # 装配服务：MIWU_MOCK_DEVICES=<测试包> 时进入虚拟测试家庭模式
+        from app.core.mock_devices import create_service
+        self._service = create_service()
         self._jobs = JobExecutor(self)
 
         from app import resource_path
         self.setWindowIcon(QIcon(str(resource_path("app/ui/icon.png"))))
-        self.setWindowTitle("米家 - MiHome for Windows")
+        if getattr(self._service, "is_mock", False):
+            self.setWindowTitle("米家 - MiHome for Windows（虚拟测试家庭）")
+        else:
+            self.setWindowTitle("米家 - MiHome for Windows")
         # 保持原生窗口框架，通过拦截 WM_NCCALCSIZE 抹掉系统标题栏区域：
         # 拖动/双击最大化/最小化动画/Aero Snap/边缘缩放全部由系统原生处理
         self.setWindowFlags(Qt.Window)
@@ -414,19 +440,50 @@ class MainWindow(QMainWindow):
         if sys.platform == "win32" and eventType == "windows_generic_MSG":
             msg = wintypes.MSG.from_address(int(message))
             if msg.message == _WM_NCCALCSIZE and msg.wParam:
-                # 返回 0 去掉非客户区（标题栏+边框视觉），客户区占满窗口
-                if self.isMaximized():
-                    # 系统最大化时窗口会外扩一圈边框宽度，收缩客户区补偿
-                    rect = wintypes.RECT.from_address(int(msg.lParam))
-                    pad = self._system_frame_padding()
-                    rect.left += pad
-                    rect.top += pad
-                    rect.right -= pad
-                    rect.bottom -= pad
+                # 抹掉非客户区（标题栏+边框视觉），客户区占满窗口。
+                # 最大化尺寸已被 WM_GETMINMAXINFO 限制在工作区内，
+                # 无需再做「外扩一圈边框」的补偿收缩
                 return True, 0
             if msg.message == _WM_NCHITTEST:
                 return True, self._hit_test(msg.lParam)
+            if msg.message == _WM_GETMINMAXINFO:
+                return self._on_get_minmax(msg)
         return False, 0
+
+    def _on_get_minmax(self, msg) -> tuple[bool, int]:
+        """把最大化窗口的上限钳制到所在显示器的工作区。
+
+        无边框但保留原生厚边框的窗口，Windows 会把最大化窗口放到
+        工作区之外一圈（覆盖任务栏/被屏幕边缘裁切），表现为最大化
+        后底部内容被任务栏挡住、右下角内容被裁、还原后尺寸错乱。
+        这里限制 ptMaxSize/ptMaxPosition（物理像素，与系统一致），
+        双击标题栏 / 点最大化按钮 / 拖到屏幕顶 Snap / Win+↑ 统一生效。
+        """
+        try:
+            user32 = ctypes.windll.user32
+            hwnd = int(self.winId())
+            user32.MonitorFromWindow.argtypes = [
+                wintypes.HWND, ctypes.c_ulong]
+            user32.MonitorFromWindow.restype = ctypes.c_void_p
+            user32.GetMonitorInfoW.argtypes = [
+                ctypes.c_void_p, ctypes.POINTER(_MonitorInfo)]
+            user32.GetMonitorInfoW.restype = wintypes.BOOL
+            hmon = user32.MonitorFromWindow(hwnd, _MONITOR_DEFAULTTONEAREST)
+            info = _MonitorInfo()
+            info.cbSize = ctypes.sizeof(_MonitorInfo)
+            if not hmon or not user32.GetMonitorInfoW(hmon, ctypes.byref(info)):
+                return True, 0
+            mmi = _MinMaxInfo.from_address(int(msg.lParam))
+            work = info.rcWork
+            mmi.ptMaxPosition.x = work.left
+            mmi.ptMaxPosition.y = work.top
+            mmi.ptMaxSize.x = work.right - work.left
+            mmi.ptMaxSize.y = work.bottom - work.top
+            mmi.ptMaxTrackSize.x = mmi.ptMaxSize.x
+            mmi.ptMaxTrackSize.y = mmi.ptMaxSize.y
+        except Exception:
+            logger.exception("WM_GETMINMAXINFO 处理失败")
+        return True, 0
 
     def _system_frame_padding(self) -> int:
         """系统边框宽度（含扩展边距），随 DPI 缩放。"""
@@ -1242,6 +1299,24 @@ class MainWindow(QMainWindow):
         # 太高；防抖等布局稳定，列数真的变化时才重建
         self._resize_timer.start()
         self._voice_fab.reposition()
+
+    def changeEvent(self, event) -> None:  # noqa: N802 (Qt 命名约定)
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.WindowStateChange:
+            maximized = self.isMaximized()
+            if hasattr(self, "_max_btn"):
+                self._max_btn.setText("\uE923" if maximized else "\uE922")
+            # 最大化/还原/贴靠等状态切换后，最终客户区尺寸由系统在消息
+            # 循环里异步下发；延迟一帧等 Qt 完成几何重算再校正列数，
+            # 避免最大化瞬间仍按旧宽度算列导致内容被裁/大面积留白
+            QTimer.singleShot(0, self._sync_after_state_change)
+
+    def _sync_after_state_change(self) -> None:
+        if self.isMinimized() or not self.isVisible():
+            return
+        self._clamp_to_screen()
+        if self._cards:
+            self._on_resize_settled()
 
     def _clamp_to_screen(self) -> None:
         """把窗口尺寸/位置钳制回所在屏幕的可用工作区。
