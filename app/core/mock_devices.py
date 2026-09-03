@@ -91,6 +91,9 @@ class MockMijiaService:
         self._models: dict[str, dict] = pack.get("models") or {}
         self._scenes: list[dict] = pack.get("scenes") or []
         self._devices: list[dict] = []
+        # did -> 该设备的能力属性列表：优先设备自带 props（虚拟包由生成器
+        # 按语义槽写入），否则用型号模板——同型号跨品类重复也能各自正确
+        self._spec_by_did: dict[str, list[dict]] = {}
         # did -> (name, model, room, online, state)
         room_temp = {"客厅": 26.5, "餐厅": 26.0, "阳台": 29.5, "卧室1": 25.8,
                      "卧室2": 26.2, "书房": 25.5, "厕所1": 27.0, "厕所2": 27.0}
@@ -100,7 +103,11 @@ class MockMijiaService:
             did = str(dev["did"])
             model = str(dev.get("model") or "")
             room = str(dev.get("room") or "未知")
-            spec = self._models.get(model) or {}
+            # 设备级 props 优先；缺失时回退型号模板
+            dev_props = (dev.get("props")
+                         or (self._models.get(model) or {}).get("props")
+                         or [])
+            spec = {"props": dev_props}
             state: dict[str, Any] = {}
             for prop in spec.get("props") or []:
                 pname = prop["name"]
@@ -138,6 +145,7 @@ class MockMijiaService:
                     state[pname] = 86
                 elif ptype == "bool":
                     state[pname] = False
+            self._spec_by_did[did] = dev_props
             self._devices.append({
                 "did": did,
                 "name": str(dev.get("name") or did),
@@ -150,6 +158,10 @@ class MockMijiaService:
         # 安全模式（MIWU_SAFE_DEVICE）与真实服务同语义：可选支持
         from . import safety as _safety
         self._guard = _safety.get_guard()
+        # model -> 产品图 URL 或 None（确认无图），与真实服务同缓存语义；
+        # 百科抓取的真实图标 CDN 地址优先（命中即用，不再回源 miot-spec）
+        self._icon_urls: dict[str, str | None] = dict(
+            pack.get("model_icons") or {})
 
     # ---------- 登录 / 设备列表 ----------
 
@@ -182,6 +194,10 @@ class MockMijiaService:
     def _spec_props(self, model: str) -> list[dict]:
         return list((self._models.get(model) or {}).get("props") or [])
 
+    def _device_props(self, did: str) -> list[dict]:
+        """某台设备的能力属性（设备自带 props 优先，见 __init__）。"""
+        return list(self._spec_by_did.get(str(did)) or [])
+
     def model_has_published_functions(self, model: str) -> bool | None:
         """该型号在测试包里有可读/可写属性即视为有功能。"""
         props = self._spec_props(model)
@@ -199,7 +215,7 @@ class MockMijiaService:
                      writable="w" in str(p.get("rw", "")),
                      range=tuple(p["range"]) if p.get("range") else None,
                      value_list=p.get("value_list"))
-            for p in self._spec_props(dev["model"])
+            for p in self._device_props(did)
         ]
         actions: list[ActionInfo] = []
         return DeviceDetail(did=did, name=dev["name"], model=dev["model"],
@@ -209,7 +225,7 @@ class MockMijiaService:
 
     def _has_on(self, did: str) -> bool:
         dev = self._require(did)
-        return any(_norm_bool_prop(p) for p in self._spec_props(dev["model"]))
+        return any(_norm_bool_prop(p) for p in self._device_props(did))
 
     def power_state(self, did: str) -> bool | None:
         if not self._has_on(did):
@@ -245,7 +261,7 @@ class MockMijiaService:
     def write_prop(self, did: str, name: str, value) -> None:
         self._assert_allowed(did)
         dev = self._require(did)
-        spec = next((p for p in self._spec_props(dev["model"])
+        spec = next((p for p in self._device_props(did)
                      if p["name"] == name), None)
         if spec is None or "w" not in str(spec.get("rw", "")):
             raise ServiceError(f"设备不支持属性 {name}")
@@ -268,7 +284,7 @@ class MockMijiaService:
     def quick_op_candidates(self, did: str) -> list[QuickOpInfo]:
         dev = self._require(did)
         ops: list[QuickOpInfo] = []
-        for p in self._spec_props(dev["model"]):
+        for p in self._device_props(did):
             if "w" not in str(p.get("rw", "")):
                 continue
             if p.get("type") == "bool":
@@ -294,7 +310,7 @@ class MockMijiaService:
         for did in dids:
             dev = self._require(did)
             temp = hum = None
-            for p in self._spec_props(dev["model"]):
+            for p in self._device_props(did):
                 name = p["name"]
                 if "r" not in str(p.get("rw", "")):
                     continue
@@ -305,7 +321,7 @@ class MockMijiaService:
             result[did] = format_metrics_text(temp, hum)
         return result
 
-    # ---------- 本地化 / 产品图（虚拟包全部离线：直接空结果） ----------
+    # ---------- 本地化（虚拟包中文名已就绪，无需回退） ----------
 
     def localized_product_names(self, dids: list[str], names: dict[str, str]) -> dict[str, str]:
         return {}
@@ -319,10 +335,53 @@ class MockMijiaService:
     def cached_product_page_names(self, models: list[str]) -> dict[str, str]:
         return {}
 
-    def fetch_product_icon(self, model: str) -> bytes | None:
-        return None
+    # ---------- 产品图 ----------
+    # 虚拟测试家庭同样展示产品图：与真实模式同源的公开 miot-spec
+    # 产品页（product.icon，米家 CDN）——只读公共页面，不涉及账号与
+    # 设备控制；结果按型号缓存，失败/无图返回 None 由界面安静跳过。
 
     def product_icon_url(self, model: str) -> str | None:
+        if model in self._icon_urls:
+            return self._icon_urls[model]
+        url = None
+        try:
+            import re
+
+            import requests as _requests
+
+            resp = _requests.get(
+                f"https://home.miot-spec.com/spec/{model}", timeout=20,
+                headers={"User-Agent": "Mozilla/5.0"})
+            if resp.status_code == 200:
+                m = re.search(
+                    r'<script data-page="app" type="application/json">(.*?)</script>',
+                    resp.text, re.S)
+                if m:
+                    product = json.loads(m.group(1)).get("props", {}).get(
+                        "product", {})
+                    icon = product.get("icon")
+                    url = str(icon) if isinstance(icon, str) and icon.startswith(
+                        "http") else None
+        except Exception:
+            logger.warning("获取型号 %s 产品图地址失败（虚拟家庭）", model)
+        self._icon_urls[model] = url
+        return url
+
+    def fetch_product_icon(self, model: str) -> bytes | None:
+        """下载产品图字节（供 .icons 缓存落盘）；无图/网络失败返回 None。"""
+        url = self.product_icon_url(model)
+        if not url:
+            return None
+        try:
+            import requests as _requests
+
+            resp = _requests.get(url, timeout=20,
+                                 headers={"User-Agent": "Mozilla/5.0"})
+            if resp.status_code == 200 and resp.content[:8] in (
+                    b"\x89PNG\r\n\x1a\n", b"\xff\xd8\xff\xe0", b"\xff\xd8\xff\xe1"):
+                return resp.content
+        except Exception:
+            logger.warning("下载型号 %s 产品图失败（虚拟家庭）", model)
         return None
 
     # ---------- 场景 ----------
@@ -347,7 +406,7 @@ class MockMijiaService:
         if name in state:
             return state[name]
         # 未显式播种的读取：按类型给保守默认，绝不抛异常
-        spec = next((p for p in self._spec_props(dev["model"])
+        spec = next((p for p in self._device_props(did)
                      if p["name"] == name), None)
         if spec is None:
             return default
