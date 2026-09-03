@@ -16,36 +16,6 @@
 > （扫码登录、设备列表与常用控制、托盘、小组件、小爱语音等）已无大碍，
 > 需适配更多设备功能则依赖社区支持。
 
-## 下载与使用（Releases）
-
-| 版本 | 说明 | 下载页 |
-|------|------|--------|
-| **custom 版 v0.2.1（正式版）** | 连接真实米家账号使用，含便携版与安装版 | https://github.com/iop666/MiHome-Windows/releases/tag/v0.2.1 |
-| **custom-mock 0.2.1（模拟设备测试版）** | 264 台 / 66 小类虚拟家庭，完全离线，不登录不碰真实设备 | https://github.com/iop666/MiHome-Windows/releases/tag/mock-0.2.1 |
-
-### 正式版（custom 版 v0.2.1）
-
-- `MiHome-Windows-custom-0.2.1-portable.zip` —— 便携版：解压后双击 `MiHome-Windows.exe` 即可使用；
-- `MiHome-Windows-custom-0.2.1-setup.exe` —— 安装版：安装后从开始菜单 / 桌面图标启动。
-
-首次启动弹出**米家扫码登录**，凭据长期复用，失效时重新扫码即可。
-
-### 模拟设备测试版（custom-mock 0.2.1）
-
-- `MiHome-Windows-custom-mock-0.2.1-portable.zip` —— 解压后双击 `run-mock-test.bat` 启动。
-
-内含 264 台 / 66 小类的虚拟家庭（按房间分布，配本地产品图），适合体验
-多设备列表、卡片排序、主题切换等界面效果；**完全离线**：不登录、不联网、
-不碰真实设备，可放心体验。退出后使用正式版即回到真实米家。
-
-### 简要使用说明
-
-- **登录与数据**：扫码登录的凭据保存在本机用户目录（`~/.config/mijia-api/auth.json`），
-  设置 / 布局 / 缓存写入 `%LOCALAPPDATA%\MiHome-Windows\`，不会出现在源码或发布包中；
-- **模拟版与正式版**：使用同一份程序，靠启动方式区分（模拟版由 `run-mock-test.bat`
-  以离线设备源启动），互不冲突；
-- 详细说明见下文「本地缓存与数据存储」与仓库源码。
-
 ## 关于本分支
 
 本分支（fork）的**开发与发布过程均由 DeepSeek Harness 协助完成**。
