@@ -86,7 +86,7 @@ class MockMijiaService:
 
     is_mock = True
 
-    def __init__(self, pack: dict):
+    def __init__(self, pack: dict, icons_dir: str | Path | None = None):
         self._home_name = str(pack.get("home", {}).get("name") or "虚拟测试家庭")
         self._models: dict[str, dict] = pack.get("models") or {}
         self._scenes: list[dict] = pack.get("scenes") or []
@@ -162,6 +162,9 @@ class MockMijiaService:
         # 百科抓取的真实图标 CDN 地址优先（命中即用，不再回源 miot-spec）
         self._icon_urls: dict[str, str | None] = dict(
             pack.get("model_icons") or {})
+        # 本地离线图标包目录（mock_icons/<model>.png）：存在则直读文件，
+        # 无需逐台联网拉图，展示即时且稳定
+        self._icons_dir = Path(icons_dir) if icons_dir else None
 
     # ---------- 登录 / 设备列表 ----------
 
@@ -368,7 +371,22 @@ class MockMijiaService:
         return url
 
     def fetch_product_icon(self, model: str) -> bytes | None:
-        """下载产品图字节（供 .icons 缓存落盘）；无图/网络失败返回 None。"""
+        """下载产品图字节（供 .icons 缓存落盘）；无图/网络失败返回 None。
+
+        本地图标包（mock_icons/<model>.png）命中时直读文件，完全离线；
+        未命中再走 URL 下载，仍失败返回 None 由界面安静跳过。
+        """
+        local = None
+        if self._icons_dir is not None:
+            local = self._icons_dir / f"{model}.png"
+        if local is not None and local.is_file():
+            try:
+                data = local.read_bytes()
+                if data[:8] in (b"\x89PNG\r\n\x1a\n",
+                                b"\xff\xd8\xff\xe0", b"\xff\xd8\xff\xe1"):
+                    return data
+            except OSError:
+                pass
         url = self.product_icon_url(model)
         if not url:
             return None
@@ -452,10 +470,15 @@ def create_service():
     """
     env = os.environ.get("MIWU_MOCK_DEVICES", "").strip()
     if env:
-        pack = load_mock_pack(env)
+        pack_path = Path(env)
+        pack = load_mock_pack(pack_path)
         if pack is not None:
             logger.info("虚拟测试家庭模式：加载 %d 台模拟设备",
                         len(pack.get("devices") or []))
-            return MockMijiaService(pack)
+            # 图标包约定放在测试包 json 同目录的 mock_icons/ 下
+            icons_dir = pack_path.resolve().parent / "mock_icons"
+            if not icons_dir.is_dir():
+                icons_dir = None
+            return MockMijiaService(pack, icons_dir=icons_dir)
     from .service import MijiaService
     return MijiaService()
